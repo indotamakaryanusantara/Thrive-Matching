@@ -1,7 +1,13 @@
 node_modules/
-dist/
+.next/
+out/
 .env
 .env.*
 *.log
 .DS_Store
 Thumbs.db
+
+# Generated from matcher-source/ via scripts/split-matcher.mjs
+app/matcher.css
+public/matcher/body.html
+public/matcher/matcher-app.js

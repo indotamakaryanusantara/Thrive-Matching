@@ -1,28 +1,33 @@
 # Thrive Matching
 
-Source code for the Thrive Therapy Phoenix therapist matching tool.
+Next.js app for the Thrive Therapy Phoenix therapist matching tool.
 
-## Contents
+**Live:** https://thrive-matching.vercel.app
 
-| Path | Description |
-|------|-------------|
-| `thrivetherapy-matchingdemo.html` | Matcher UI + business logic (phase 1 baseline) |
-| `tests/run_tests.js` | Regression suite — keep green when changing matching rules |
+## Stack
 
-## Run tests
+- Next.js 14 (App Router)
+- Matcher UI/logic from client handoff demo (`matcher-source/`)
+
+## Commands
 
 ```bash
-node tests/run_tests.js
+npm install
+npm run dev      # http://localhost:3000
+npm run build
+npm test         # regression suite (25 tests)
 ```
 
-Requires Node 18+. No dependencies.
+`predev` / `prebuild` split `matcher-source/thrivetherapy-matchingdemo.html` into:
 
-## Local development
+- `app/matcher.css`
+- `public/matcher/body.html`
+- `public/matcher/matcher-app.js`
 
-Client data, Webflow exports, spreadsheet templates, and handoff documents live **outside** this folder in the parent `TherapistMatching/` workspace (not versioned here).
+## Edit the matcher
 
-## Stack (phase 1)
+Change **`matcher-source/thrivetherapy-matchingdemo.html`**, then run `npm run dev` or `npm test`.
 
-- Frontend: productionize demo → Vite/JS on Vercel
-- Backend: Google Apps Script + Google Sheets
-- Roster source: NEW AI THERAPIST PROFILES (Google Sheet)
+## Vercel
+
+Connect this repo with preset **Next.js**. Root directory: `/` (default). Build command: `npm run build`.

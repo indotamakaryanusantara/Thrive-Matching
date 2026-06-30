@@ -9,7 +9,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '..', 'thrivetherapy-matchingdemo.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'matcher-source', 'thrivetherapy-matchingdemo.html'), 'utf8');
 const src = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
 
 function grab(name, kind) {
