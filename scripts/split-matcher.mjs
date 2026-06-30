@@ -16,7 +16,12 @@ if (!style || !body || !script) {
   process.exit(1);
 }
 
-fs.writeFileSync(path.join(root, 'app', 'matcher.css'), style);
-fs.writeFileSync(path.join(root, 'public', 'matcher', 'body.html'), body);
-fs.writeFileSync(path.join(root, 'public', 'matcher', 'matcher-app.js'), script);
+const appDir = path.join(root, 'app');
+const matcherPublicDir = path.join(root, 'public', 'matcher');
+fs.mkdirSync(appDir, { recursive: true });
+fs.mkdirSync(matcherPublicDir, { recursive: true });
+
+fs.writeFileSync(path.join(appDir, 'matcher.css'), style);
+fs.writeFileSync(path.join(matcherPublicDir, 'body.html'), body);
+fs.writeFileSync(path.join(matcherPublicDir, 'matcher-app.js'), script);
 console.log('Matcher assets split: app/matcher.css, public/matcher/*');
