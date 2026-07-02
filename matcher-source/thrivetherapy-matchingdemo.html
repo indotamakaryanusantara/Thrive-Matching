@@ -1647,6 +1647,8 @@ let insuranceFlex = null;
 let internPref   = 'excluded'; // 'excluded' | 'prefer' | 'open' | 'licensed' — interns NEVER matched unless client opts in via the cost question
 let topPriority  = 'specialty'; // auto-detected in runMatch()
 let lastMatchContext = {}; // stores context for generating match summary
+let _lastTopMatches = [];
+let _inquirySubmitted = false;
 
 function selectLocationOpt(el) {
   document.querySelectorAll('#locationCards .opt-card').forEach(c => c.classList.remove('selected'));
@@ -2514,6 +2516,8 @@ function runMatch() {
                        internPref, notes, implicitSpecs: implicitSpecsForContext };
 
   const topMatches = findMatch(ranked, locationPref, insurance, genderPref, virtualPref, insuranceFlex, clientAge, detectedNiches, severityTier, notes, topPriority, serviceType, internPref, explicitNicheRequest);
+  _lastTopMatches = topMatches;
+  if (topMatches.length) _optionsMatches = topMatches;
   if (!topMatches.length) {
     // Infidelity gate came up empty (all specialists closed)? Per Colter
     // (2026-06-11): offer the choice — waitlist a specialist, or see an
@@ -2735,13 +2739,7 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
     pool = pool.filter(t => !t.groupsOnly);
   }
 
-  // Hard filter: complexOnly (Cayla only for critical severity cases)
-  // Payment method is no longer a gate — complexity and severity determine fit
-  // (Infidelity cases bypass this — the trio is hand-picked for that work.)
-  pool = pool.filter(t => {
-    if (!t.complexOnly) return true;
-    return infidelityCase || severityTier === 'critical';
-  });
+  // complexOnly therapists (e.g. Cayla) are priority-routed in scoring, not hard-excluded
 
   // Hard filter: closed caseload
   pool = pool.filter(t => t.caseload !== 'closed');
@@ -2913,8 +2911,15 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
     if (topPriority === 'specialty') finalSpec     = Math.min(30, specScore + 10);
     if (topPriority === 'location')  finalLocation = Math.min(25, locationScore + 10);
 
+    // Complex-case specialists (e.g. Cayla) — priority for couples/infidelity/critical, not a hard gate
+    const complexCase = infidelityCase
+      || (serviceType === 'couples' && (severityTier === 'critical' || severityTier === 'elevated'))
+      || severityTier === 'critical';
+    let complexBoost = 0;
+    if (t.complexOnly && complexCase && t.caseload !== 'closed') complexBoost = 12;
+
     // ── Total & Normalize to 100 ──────────────────────────────────
-    const raw = msgScore + finalSpec + finalLocation + genderScore + svcScore;
+    const raw = msgScore + finalSpec + finalLocation + genderScore + svcScore + complexBoost;
     const maxPossible = 55 + (topPriority === 'specialty' ? 30 : 20) + (topPriority === 'location' ? 25 : 15) + 5 + 5;
     const pct = Math.min(99, Math.round((raw / maxPossible) * 100));
 
@@ -3007,6 +3012,10 @@ function showIntensiveTherapistResult(type, clientName) {
         </div>
       </div>
     </div>`;
+  submitInquiryOnce(collectInquiryPayload({
+    selectedTherapist: therapist ? therapist.name : '',
+    formPath: 'intensive_' + type,
+  }));
   window.scrollTo(0, 0);
 }
 
@@ -3064,6 +3073,10 @@ function showProgramResult(type) {
   document.getElementById('programDesc').textContent = c.desc;
 
   document.getElementById('programTeam').textContent = c.team;
+  submitInquiryOnce(collectInquiryPayload({
+    formPath: 'program_' + type,
+    notes: c.tag,
+  }));
   window.scrollTo(0, 0);
 }
 
@@ -3273,6 +3286,7 @@ function showMatchResult(result) {
   if (!result) {
     container.innerHTML = '<div class="no-match">Your situation deserves personal attention — our team will review your information and reach out shortly with a recommendation.</div>';
     document.getElementById('groupsInterestSection').style.display = 'none';
+    submitInquiryOnce(collectInquiryPayload({ formPath: 'no_match' }));
     window.scrollTo(0,0);
     return;
   }
@@ -3341,6 +3355,11 @@ function showMatchResult(result) {
     }
   }
 
+  submitInquiryOnce(collectInquiryPayload({
+    selectedTherapist: result.therapist.name,
+    formPath: 'match_result',
+    matchScoresJson: JSON.stringify({ pct: result.pct, score: result.score }),
+  }));
   window.scrollTo(0, 0);
 }
 
@@ -3746,8 +3765,71 @@ function pickFromOptions(idx) {
   showMatchResult(_optionsMatches[idx]);
 }
 
+// ─── Sheet integration (Vercel API → Apps Script → Google Sheet) ─────────────
+function collectInquiryPayload(extra) {
+  extra = extra || {};
+  const insCard = document.querySelector('#insuranceCards .opt-card.selected');
+  const locLabels = { 1: 'Phoenix', 2: 'Prefer Phoenix', 3: 'No preference', 4: 'Prefer Glendale', 5: 'Glendale' };
+  const virtLabels = { 1: 'In-person only', 2: 'Open to virtual', 3: 'Virtual only' };
+  const preferredLocation = [locLabels[locationPref], virtLabels[virtualPref]].filter(Boolean).join(' · ');
+  const fullName = (document.getElementById('couplesName')?.value || document.getElementById('fname')?.value || document.getElementById('grpName')?.value || '').trim();
+  const nameParts = fullName.split(/\s+/).filter(Boolean);
+  const matches = extra.topMatches || _lastTopMatches || _optionsMatches || [];
+  return Object.assign({
+    serviceType: serviceType || '',
+    patientFirstName: nameParts[0] || '',
+    patientLastName: nameParts.slice(1).join(' ') || '',
+    patientEmail: document.getElementById('femail')?.value?.trim() || '',
+    patientPhone: document.getElementById('fphone')?.value?.trim() || '',
+    patientAge: document.getElementById('fage')?.value || document.getElementById('couplesAge')?.value || '',
+    preferredLocation: preferredLocation,
+    insurance: insCard ? insCard.dataset.val : '',
+    freeTextMessage: (document.getElementById('fmore')?.value || document.getElementById('couplesMessage')?.value || '').trim(),
+    matchedTherapist1: matches[0] && matches[0].therapist ? matches[0].therapist.name : '',
+    matchedTherapist2: matches[1] && matches[1].therapist ? matches[1].therapist.name : '',
+    matchedTherapist3: matches[2] && matches[2].therapist ? matches[2].therapist.name : '',
+    selectedTherapist: '',
+    selectedGroups: '',
+    matchScoresJson: '',
+    formPath: '',
+    notes: '',
+  }, extra);
+}
+
+function submitInquiry(payload) {
+  fetch('/api/inquiry', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(function(err) {
+    console.warn('Inquiry submit failed — team will not receive this submission automatically', err);
+  });
+}
+
+function submitInquiryOnce(payload) {
+  if (_inquirySubmitted) return;
+  _inquirySubmitted = true;
+  submitInquiry(payload);
+}
+
+async function initMatcher() {
+  try {
+    const res = await fetch('/api/roster');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.therapists) && data.therapists.length > 0) {
+        THERAPISTS.length = 0;
+        THERAPISTS.push.apply(THERAPISTS, data.therapists);
+      }
+    }
+  } catch (err) {
+    console.warn('Using embedded therapist roster (sheet fetch unavailable)', err);
+  }
+  buildSpecialtyGrid();
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
-buildSpecialtyGrid();
+initMatcher();
 
 </script>
 </body>

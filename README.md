@@ -31,3 +31,14 @@ Change **`matcher-source/thrivetherapy-matchingdemo.html`**, then run `npm run d
 ## Vercel
 
 Connect this repo with preset **Next.js**. Root directory: `/` (default). Build command: `npm run build`.
+
+## Google backend
+
+Roster and inquiries go through Vercel API routes → Google Apps Script → Google Sheet.
+
+| Item | Value |
+|------|--------|
+| Spreadsheet + Apps Script account | `deskteam360@gmail.com` |
+| Dev spreadsheet | https://docs.google.com/spreadsheets/d/1CmrsdmYu-sH3Cdgx7DhvfVVOxeuh1nY1P1srClJdGUU/edit |
+
+**Vercel env vars:** `APPS_SCRIPT_URL`, `APPS_SCRIPT_SECRET` (set in dashboard; not committed).
