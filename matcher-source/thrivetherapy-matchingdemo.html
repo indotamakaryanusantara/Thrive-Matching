@@ -1649,6 +1649,7 @@ let topPriority  = 'specialty'; // auto-detected in runMatch()
 let lastMatchContext = {}; // stores context for generating match summary
 let _lastTopMatches = [];
 let _inquirySubmitted = false;
+let _lastGroupRecommendations = [];
 
 function selectLocationOpt(el) {
   document.querySelectorAll('#locationCards .opt-card').forEach(c => c.classList.remove('selected'));
@@ -2089,6 +2090,7 @@ function submitGroupsRecommend() {
   // Top 1–2 non-zero matches; fall back to top 2 if nothing scored
   let recommended = scored.filter(s => s.score > 0).slice(0, 2).map(s => s.group);
   if (!recommended.length) recommended = scored.slice(0, 2).map(s => s.group);
+  _lastGroupRecommendations = recommended.map(g => g.name);
 
   // Show result screen with recommended groups
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
@@ -2138,6 +2140,7 @@ function showGroupFacilitatorResult(groupId) {
     // CMS doesn't name a facilitator for this group — generic hand-off
     container.innerHTML = '<div class="no-match">Our groups coordinator will reach out within 1–2 business days to get you connected.</div>';
     document.getElementById('groupsInterestSection').style.display = 'none';
+    submitGroupsInquiry(group);
     window.scrollTo(0, 0);
     return;
   }
@@ -2176,6 +2179,7 @@ function showGroupFacilitatorResult(groupId) {
   }).join('');
 
   container.innerHTML = facilitatorCards;
+  submitGroupsInquiry(group);
   window.scrollTo(0, 0);
 }
 
@@ -3766,6 +3770,23 @@ function pickFromOptions(idx) {
 }
 
 // ─── Sheet integration (Vercel API → Apps Script → Google Sheet) ─────────────
+function submitGroupsInquiry(group) {
+  const recommendNote = (document.getElementById('grpRecommendNote')?.value || '').trim();
+  const facilitators = group && group.facilitators ? group.facilitators.join(', ') : '';
+  const formPath = groupChoice === 'recommend' ? 'groups_recommend' : 'groups_browse';
+  submitInquiryOnce(collectInquiryPayload({
+    serviceType: 'groups',
+    formPath: formPath,
+    selectedGroups: group ? group.name : '',
+    selectedTherapist: facilitators,
+    freeTextMessage: recommendNote,
+    matchScoresJson: _lastGroupRecommendations.length
+      ? JSON.stringify({ recommendedGroups: _lastGroupRecommendations })
+      : '',
+    notes: group ? [group.day, group.time, group.cost].filter(Boolean).join(' · ') : '',
+  }));
+}
+
 function collectInquiryPayload(extra) {
   extra = extra || {};
   const insCard = document.querySelector('#insuranceCards .opt-card.selected');
@@ -3779,12 +3800,12 @@ function collectInquiryPayload(extra) {
     serviceType: serviceType || '',
     patientFirstName: nameParts[0] || '',
     patientLastName: nameParts.slice(1).join(' ') || '',
-    patientEmail: (document.getElementById('femail')?.value || document.getElementById('couplesEmail')?.value || document.getElementById('iopEmail')?.value || document.getElementById('pcEmail')?.value || '').trim(),
-    patientPhone: (document.getElementById('fphone')?.value || document.getElementById('couplesPhone')?.value || document.getElementById('iopPhone')?.value || document.getElementById('pcPhone')?.value || '').trim(),
-    patientAge: document.getElementById('fage')?.value || document.getElementById('couplesAge')?.value || document.getElementById('iopAge')?.value || document.getElementById('pcAge')?.value || '',
+    patientEmail: (document.getElementById('femail')?.value || document.getElementById('couplesEmail')?.value || document.getElementById('grpEmail')?.value || document.getElementById('iopEmail')?.value || document.getElementById('pcEmail')?.value || '').trim(),
+    patientPhone: (document.getElementById('fphone')?.value || document.getElementById('couplesPhone')?.value || document.getElementById('grpPhone')?.value || document.getElementById('iopPhone')?.value || document.getElementById('pcPhone')?.value || '').trim(),
+    patientAge: document.getElementById('fage')?.value || document.getElementById('couplesAge')?.value || document.getElementById('grpAge')?.value || document.getElementById('iopAge')?.value || document.getElementById('pcAge')?.value || '',
     preferredLocation: preferredLocation,
     insurance: insCard ? insCard.dataset.val : '',
-    freeTextMessage: (document.getElementById('fmore')?.value || document.getElementById('couplesMessage')?.value || '').trim(),
+    freeTextMessage: (document.getElementById('fmore')?.value || document.getElementById('couplesMessage')?.value || document.getElementById('grpRecommendNote')?.value || document.getElementById('iopMessage')?.value || document.getElementById('pcMessage')?.value || '').trim(),
     matchedTherapist1: matches[0] && matches[0].therapist ? matches[0].therapist.name : '',
     matchedTherapist2: matches[1] && matches[1].therapist ? matches[1].therapist.name : '',
     matchedTherapist3: matches[2] && matches[2].therapist ? matches[2].therapist.name : '',
