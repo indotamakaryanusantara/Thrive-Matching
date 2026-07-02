@@ -2981,6 +2981,10 @@ function showIntensiveTherapistResult(type, clientName) {
   const container = document.getElementById('matchCardContainer');
   if (!therapist) {
     container.innerHTML = '<div class="no-match">Your information has been received and our team will be in touch shortly.</div>';
+    submitInquiryOnce(collectInquiryPayload({
+      formPath: 'intensive_' + type + '_fallback',
+      notes: INTENSIVE_LABELS[type] || type,
+    }));
     window.scrollTo(0, 0);
     return;
   }
@@ -3397,6 +3401,13 @@ function showGroupFromIndividualMatch() {
     cardContainer.innerHTML = facilitatorTherapists.map(t => buildTherapistCardHTML(t)).join('');
   }
 
+  submitInquiry(collectInquiryPayload({
+    formPath: 'match_result_group_addon',
+    selectedGroups: groupNames.replace(' and ', ', '),
+    selectedTherapist: facilitatorNames.join(', '),
+    notes: 'Group interest added after individual match',
+  }));
+
   window.scrollTo(0, 0);
 }
 
@@ -3701,6 +3712,11 @@ function pickFromConflict(idx) {
     document.getElementById('matchCardContainer').innerHTML =
       `<div class="no-match">We've added you to ${firstName}'s waitlist and will reach out the moment a spot opens. If anything changes in the meantime — or you'd like to start with someone else while you wait — just give us a call at (602) 529-6557.</div>`;
     document.getElementById('groupsInterestSection').style.display = 'none';
+    submitInquiryOnce(collectInquiryPayload({
+      selectedTherapist: match.therapist.name,
+      formPath: 'infidelity_waitlist',
+      notes: 'Waitlist — infidelity specialist',
+    }));
     window.scrollTo(0, 0);
     return;
   }
