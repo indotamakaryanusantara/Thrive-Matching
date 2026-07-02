@@ -23,7 +23,9 @@ export async function fetchAppsScript<T>(
     return res.json() as Promise<T>;
   }
 
-  const res = await fetch(APPS_SCRIPT_URL!, {
+  const url = new URL(APPS_SCRIPT_URL!);
+  url.searchParams.set('token', APPS_SCRIPT_SECRET!);
+  const res = await fetch(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     redirect: 'follow',

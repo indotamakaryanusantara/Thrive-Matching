@@ -3772,16 +3772,16 @@ function collectInquiryPayload(extra) {
   const locLabels = { 1: 'Phoenix', 2: 'Prefer Phoenix', 3: 'No preference', 4: 'Prefer Glendale', 5: 'Glendale' };
   const virtLabels = { 1: 'In-person only', 2: 'Open to virtual', 3: 'Virtual only' };
   const preferredLocation = [locLabels[locationPref], virtLabels[virtualPref]].filter(Boolean).join(' · ');
-  const fullName = (document.getElementById('couplesName')?.value || document.getElementById('fname')?.value || document.getElementById('grpName')?.value || '').trim();
+  const fullName = (document.getElementById('couplesName')?.value || document.getElementById('fname')?.value || document.getElementById('grpName')?.value || document.getElementById('iopName')?.value || document.getElementById('pcName')?.value || '').trim();
   const nameParts = fullName.split(/\s+/).filter(Boolean);
   const matches = extra.topMatches || _lastTopMatches || _optionsMatches || [];
   return Object.assign({
     serviceType: serviceType || '',
     patientFirstName: nameParts[0] || '',
     patientLastName: nameParts.slice(1).join(' ') || '',
-    patientEmail: document.getElementById('femail')?.value?.trim() || '',
-    patientPhone: document.getElementById('fphone')?.value?.trim() || '',
-    patientAge: document.getElementById('fage')?.value || document.getElementById('couplesAge')?.value || '',
+    patientEmail: (document.getElementById('femail')?.value || document.getElementById('couplesEmail')?.value || document.getElementById('iopEmail')?.value || document.getElementById('pcEmail')?.value || '').trim(),
+    patientPhone: (document.getElementById('fphone')?.value || document.getElementById('couplesPhone')?.value || document.getElementById('iopPhone')?.value || document.getElementById('pcPhone')?.value || '').trim(),
+    patientAge: document.getElementById('fage')?.value || document.getElementById('couplesAge')?.value || document.getElementById('iopAge')?.value || document.getElementById('pcAge')?.value || '',
     preferredLocation: preferredLocation,
     insurance: insCard ? insCard.dataset.val : '',
     freeTextMessage: (document.getElementById('fmore')?.value || document.getElementById('couplesMessage')?.value || '').trim(),
