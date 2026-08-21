@@ -13,7 +13,8 @@
     --sand: #e6d9c6;
     --track: #e5dfd4;
     --text: #1c1c1c;
-    --muted: #6f6a63;
+    --muted: #4a4a4a;
+    --desc: #1c1c1c;
     --font-display: var(--font-quattrocento), Quattrocento, Georgia, serif;
     --font-body: var(--font-quattrocento-sans), 'Quattrocento Sans', Arial, sans-serif;
   }
@@ -51,7 +52,7 @@
   .step-labels { display: flex; justify-content: space-between; width: 100%; margin: 10px 0 0; }
   .step-label {
     font-family: var(--font-body);
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     color: var(--muted);
     transition: color 0.3s;
     font-weight: 400;
@@ -74,18 +75,18 @@
   .step.active { display: block; }
   .step-title {
     font-family: var(--font-display);
-    font-size: 1.75rem;
+    font-size: 2rem;
     font-weight: 400;
     color: var(--text);
-    margin-bottom: 8px;
-    line-height: 1.2;
+    margin-bottom: 10px;
+    line-height: 1.15;
   }
   .step-subtitle {
     font-family: var(--font-body);
-    font-size: 1rem;
-    color: var(--muted);
+    font-size: 1.2rem;
+    color: var(--desc);
     margin-bottom: 28px;
-    line-height: 1.45;
+    line-height: 1.35;
   }
   .step-subtitle strong { color: var(--thrive-orange-dark); font-weight: 700; }
   .field { margin-bottom: 20px; }
@@ -138,16 +139,16 @@
   }
   .service-card .sc-title {
     font-family: var(--font-display);
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 400;
     color: var(--text);
   }
   .service-card .sc-desc {
     font-family: var(--font-body);
-    font-size: 0.85rem;
-    color: var(--muted);
-    margin-top: 6px;
-    line-height: 1.45;
+    font-size: 1rem;
+    color: var(--desc);
+    margin-top: 8px;
+    line-height: 1.35;
   }
   .specialty-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .specialty-item { position: relative; display: flex; align-items: center; gap: 9px; padding: 9px 12px; border: 1.5px solid #e8e2da; border-radius: 8px; cursor: pointer; transition: all 0.2s; user-select: none; background: #fff; }
