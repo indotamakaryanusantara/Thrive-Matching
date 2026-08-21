@@ -49,10 +49,11 @@
     width: 100%;
     max-width: none;
     margin: 18px 0 0;
-    background-color: var(--cream);
-    background-image:
-      radial-gradient(ellipse 85% 70% at -5% -10%, var(--sand) 0%, transparent 58%),
-      radial-gradient(ellipse 75% 65% at 105% 110%, var(--sand) 0%, transparent 55%);
+    background-color: #f5f5f5;
+    background-image: url('/matcher/assets/background-box-matching-tool.jpg');
+    background-size: cover;
+    background-position: center bottom;
+    background-repeat: no-repeat;
     border-radius: 24px;
     box-shadow: 0 2px 18px rgba(80, 60, 30, 0.06);
     overflow: hidden;
@@ -61,19 +62,41 @@
   .step.active { display: block; }
   .step-title { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
   .step-subtitle { font-size: 0.9rem; color: #777; margin-bottom: 28px; line-height: 1.5; }
+  .step-subtitle strong { color: var(--thrive-orange-dark); }
   .field { margin-bottom: 20px; }
   .field label { display: block; font-size: 0.85rem; font-weight: 600; color: #444; margin-bottom: 7px; }
   .field input, .field textarea, .field select { width: 100%; padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 9px; font-size: 0.9rem; font-family: inherit; transition: border-color 0.2s; background: #fafafa; }
-  .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: #3a6b5a; background: #fff; }
+  .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--thrive-orange); background: #fff; }
   .field textarea { resize: vertical; min-height: 80px; }
   .field-error { font-size: 0.78rem; color: #e05c5c; margin-top: 5px; display: none; }
-  .service-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; }
-  .service-card { border: 2px solid #e8e2da; border-radius: 12px; padding: 18px 16px; cursor: pointer; transition: all 0.2s; text-align: center; background: #fafafa; }
-  .service-card:hover { border-color: #3a6b5a; background: #f0f7f4; }
-  .service-card.selected { border-color: #3a6b5a; background: #edf7f2; }
-  .service-card .sc-icon { font-size: 1.8rem; margin-bottom: 8px; }
-  .service-card .sc-title { font-size: 0.9rem; font-weight: 700; color: #1a1a1a; }
-  .service-card .sc-desc { font-size: 0.75rem; color: #888; margin-top: 4px; line-height: 1.4; }
+  .service-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 8px; }
+  .service-card {
+    border: 1.5px solid #e5dfd4;
+    border-radius: 14px;
+    padding: 22px 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    background: #fff;
+  }
+  .service-card:hover { border-color: var(--thrive-orange); background: #fffaf3; }
+  .service-card.selected { border-color: var(--thrive-orange); background: #fff7eb; box-shadow: 0 0 0 1px var(--thrive-orange); }
+  .service-card .sc-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    min-height: 48px;
+    font-size: 1.8rem;
+  }
+  .service-card .sc-icon img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    display: block;
+  }
+  .service-card .sc-title { font-size: 0.95rem; font-weight: 700; color: #1a1a1a; }
+  .service-card .sc-desc { font-size: 0.78rem; color: #888; margin-top: 6px; line-height: 1.45; }
   .specialty-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .specialty-item { position: relative; display: flex; align-items: center; gap: 9px; padding: 9px 12px; border: 1.5px solid #e8e2da; border-radius: 8px; cursor: pointer; transition: all 0.2s; user-select: none; }
   .specialty-item:hover:not(.maxed) { border-color: #3a6b5a; background: #f7fbf9; }
@@ -108,8 +131,20 @@
   .nav-row { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; padding-top: 20px; border-top: 1px solid #f0ece7; }
   .btn-back { background: none; border: none; color: #999; font-size: 0.88rem; cursor: pointer; padding: 8px 0; }
   .btn-back:hover { color: #444; }
-  .btn-next { background: #3a6b5a; color: #fff; border: none; padding: 13px 32px; border-radius: 10px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-  .btn-next:hover { background: #2f5748; }
+  .btn-next {
+    background: var(--thrive-orange);
+    color: #fff;
+    border: none;
+    padding: 13px 32px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-next:hover { background: var(--thrive-orange-dark); }
   .program-result { display: none; padding: 36px 40px; text-align: center; }
   .program-result.active { display: block; }
   .program-icon { font-size: 3rem; margin-bottom: 16px; }
@@ -218,30 +253,30 @@
   <!-- STEP 1: Service Type -->
   <div class="step active" id="step1">
     <div class="step-title">What are you looking for?</div>
-    <div class="step-subtitle">This helps us point you in the right direction right away. <strong style="color:#3a6b5a;">Looking for more than one service?</strong> You can fill this form out again for each one.</div>
+    <div class="step-subtitle">This helps us point you in the right direction right away. <strong>Looking for more than one service?</strong> You can fill this form out again for each one.</div>
     <div class="service-grid">
       <div class="service-card" data-value="individual" onclick="selectService(this)">
-        <div class="sc-icon">🧠</div>
+        <div class="sc-icon"><img src="/matcher/assets/icon-Individual-Therapy.png" alt="" width="48" height="48"></div>
         <div class="sc-title">Individual Therapy</div>
         <div class="sc-desc">One-on-one sessions with a therapist</div>
       </div>
       <div class="service-card" data-value="couples" onclick="selectService(this)">
-        <div class="sc-icon">💑</div>
+        <div class="sc-icon"><img src="/matcher/assets/icon-couples-therapy.png" alt="" width="48" height="48"></div>
         <div class="sc-title">Couples Therapy</div>
         <div class="sc-desc">Sessions for you and your partner</div>
       </div>
       <div class="service-card" data-value="iop" onclick="selectService(this)">
-        <div class="sc-icon">🏥</div>
+        <div class="sc-icon"><img src="/matcher/assets/icon-Adult-IOP.png" alt="" width="48" height="48"></div>
         <div class="sc-title">Adult IOP</div>
         <div class="sc-desc">Intensive Outpatient Program — structured, higher-level care</div>
       </div>
       <div class="service-card" data-value="other_intensive" onclick="selectService(this)">
-        <div class="sc-icon">⚡</div>
+        <div class="sc-icon"><img src="/matcher/assets/icon-Other-Intensive.png" alt="" width="48" height="48"></div>
         <div class="sc-title">Other Intensive</div>
         <div class="sc-desc">Ketamine, OCD, Couples, or Trauma intensive programs</div>
       </div>
       <div class="service-card" data-value="groups" onclick="selectService(this)" style="grid-column: 1 / -1;">
-        <div class="sc-icon">🤝</div>
+        <div class="sc-icon"><img src="/matcher/assets/icon-Groups-Workshops.png" alt="" width="48" height="48"></div>
         <div class="sc-title">Groups / Workshops</div>
         <div class="sc-desc">Structured group therapy sessions and workshops focused on shared experiences and community support</div>
       </div>
@@ -249,7 +284,7 @@
     <div id="serviceError" class="field-error" style="margin-top:8px;">Please select a service type.</div>
     <div class="nav-row">
       <span></span>
-      <button class="btn-next" onclick="nextFromStep1()">Continue →</button>
+      <button class="btn-next" onclick="nextFromStep1()">Continue</button>
     </div>
   </div>
 
