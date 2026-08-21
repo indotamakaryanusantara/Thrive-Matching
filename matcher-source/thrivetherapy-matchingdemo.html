@@ -6,17 +6,14 @@
 <title>Thrive Therapy – Find Your Therapist</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f7f4f0; color: #2d2d2d; min-height: 100vh; }
-  .site-header { background: #fff; border-bottom: 1px solid #e8e2da; padding: 18px 24px; text-align: center; }
-  .site-header .logo { font-size: 1.5rem; font-weight: 700; color: #3a6b5a; letter-spacing: -0.5px; }
-  .site-header .tagline { font-size: 0.82rem; color: #888; margin-top: 2px; }
-  .progress-wrap { background: #fff; padding: 16px 24px 0; }
-  .progress-bar-track { height: 4px; background: #e8e2da; border-radius: 4px; overflow: hidden; max-width: 600px; margin: 0 auto; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f7f4f0; color: #2d2d2d; min-height: 100vh; padding: 0 16px 24px; }
+  .progress-wrap { background: #fff; padding: 16px 0 0; }
+  .progress-bar-track { height: 4px; background: #e8e2da; border-radius: 4px; overflow: hidden; width: 100%; }
   .progress-bar-fill { height: 100%; background: #3a6b5a; border-radius: 4px; transition: width 0.4s ease; }
-  .step-labels { display: flex; justify-content: space-between; max-width: 600px; margin: 8px auto 0; }
+  .step-labels { display: flex; justify-content: space-between; width: 100%; margin: 8px 0 0; }
   .step-label { font-size: 0.72rem; color: #aaa; transition: color 0.3s; }
   .step-label.active { color: #3a6b5a; font-weight: 600; }
-  .card { max-width: 640px; margin: 28px auto; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.07); overflow: hidden; }
+  .card { width: 100%; max-width: none; margin: 20px 0 0; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.07); overflow: hidden; }
   .step { display: none; padding: 36px 40px 32px; }
   .step.active { display: block; }
   .step-title { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
@@ -150,17 +147,13 @@
   .referral-note { margin-top: 8px; font-size: 0.8rem; color: #a07020; background: #fdf8ee; border-radius: 8px; padding: 8px 10px; }
 
   @media (max-width: 520px) {
+    body { padding: 0 12px 20px; }
     .step, .result-screen, .program-result { padding: 24px 20px 20px; }
     .service-grid, .specialty-grid, .tc-info-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
-
-<div class="site-header">
-  <div class="logo">Thrive Therapy</div>
-  <div class="tagline">Phoenix & Glendale, AZ</div>
-</div>
 
 <div class="progress-wrap" id="progressWrap">
   <div class="progress-bar-track">
