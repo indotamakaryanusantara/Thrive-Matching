@@ -3928,6 +3928,16 @@ function pickFromOptions(idx) {
 }
 
 // ─── Sheet integration (Vercel API → Apps Script → Google Sheet) ─────────────
+function findTherapistEmailByName(name) {
+  if (!name) return '';
+  const first = String(name).split(',')[0].trim().toLowerCase();
+  if (!first) return '';
+  const t = THERAPISTS.find(function (x) {
+    return String(x.name || '').trim().toLowerCase() === first;
+  });
+  return t && t.email ? t.email : '';
+}
+
 function submitGroupsInquiry(group) {
   const recommendNote = (document.getElementById('grpRecommendNote')?.value || '').trim();
   const facilitators = group && group.facilitators ? group.facilitators.join(', ') : '';
@@ -3954,7 +3964,7 @@ function collectInquiryPayload(extra) {
   const fullName = (document.getElementById('couplesName')?.value || document.getElementById('fname')?.value || document.getElementById('grpName')?.value || document.getElementById('iopName')?.value || document.getElementById('pcName')?.value || '').trim();
   const nameParts = fullName.split(/\s+/).filter(Boolean);
   const matches = extra.topMatches || _lastTopMatches || _optionsMatches || [];
-  return Object.assign({
+  const payload = Object.assign({
     serviceType: serviceType || '',
     patientFirstName: nameParts[0] || '',
     patientLastName: nameParts.slice(1).join(' ') || '',
@@ -3968,11 +3978,17 @@ function collectInquiryPayload(extra) {
     matchedTherapist2: matches[1] && matches[1].therapist ? matches[1].therapist.name : '',
     matchedTherapist3: matches[2] && matches[2].therapist ? matches[2].therapist.name : '',
     selectedTherapist: '',
+    matchedTherapistEmail: '',
     selectedGroups: '',
     matchScoresJson: '',
     formPath: '',
     notes: '',
   }, extra);
+
+  if (!payload.matchedTherapistEmail && payload.selectedTherapist) {
+    payload.matchedTherapistEmail = findTherapistEmailByName(payload.selectedTherapist);
+  }
+  return payload;
 }
 
 function submitInquiry(payload) {
