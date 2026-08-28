@@ -29,7 +29,8 @@ eval([
   src.match(/const HARD_FILTER_SPECIALTIES = \[[^\]]*\];/)[0],
   src.match(/const EXPERTISE_CONTEXT = \{[\s\S]*?\n\};/)[0],
   grab('detectImplicitSpecialties', 'fn'), grab('getSeverityTier', 'fn'),
-  grab('specCredit', 'fn'), grab('analyzeMessageScore', 'fn'), grab('findMatch', 'fn'),
+  grab('specCredit', 'fn'), grab('normalizeInsuranceForMatch', 'fn'),
+  grab('analyzeMessageScore', 'fn'), grab('findMatch', 'fn'),
   grab('analyzeMatch', 'fn'), grab('buildConversationalBlurb', 'fn'),
   'Object.assign(globalThis, {THERAPISTS, GROUPS, GROUP_KEYWORDS, NICHE_KEYWORDS, nicheKwHits, detectImplicitSpecialties, getSeverityTier, specCredit, analyzeMessageScore, findMatch, analyzeMatch, buildConversationalBlurb});'
 ].join('\n'));
@@ -93,6 +94,15 @@ console.log('\n— Gender ONLY is hard; severity bends —');
   const { res } = match('i have been cutting myself and feel hopeless', { gender: 1 });
   check('male-only critical -> male match even at rating 2', res.length > 0 && res.every(r => r.therapist.gender === 'male'));
   troy.caseload = orig; }
+
+console.log('\n— Insurance hard filter —');
+{ const { res } = match('i feel anxious most days', { ins: 'bcbs' });
+  check('BCBS selection -> only therapists who accept BCBS', res.length > 0 && res.every(r => r.therapist.insurance.includes('bcbs'))); }
+{ const cayla = THERAPISTS.find(t => t.name === 'Cayla Bozovich');
+  const origIns = cayla.insurance; cayla.insurance = [];
+  const { res } = match('i feel anxious most days', { ins: 'aetna' });
+  check('self-pay-only therapist excluded when client picks Aetna', !res.some(r => r.therapist.name === 'Cayla Bozovich'));
+  cayla.insurance = origIns; }
 
 console.log('\n— Form wins: service type beats message couples-language —');
 { const d = detect('my marriage is falling apart and i am really depressed');

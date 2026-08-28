@@ -2782,6 +2782,16 @@ function specCredit(t, id) {
   return 0;
 }
 
+function normalizeInsuranceForMatch(raw) {
+  const s = String(raw || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!s) return null;
+  if (s === 'bcbs' || s.includes('bluecross')) return 'bcbs';
+  if (s === 'aetna') return 'aetna';
+  if (s === 'cigna') return 'cigna';
+  if (s === 'united' || s.includes('unitedhealth')) return 'united';
+  return s;
+}
+
 function analyzeMessageScore(notes, therapist, implicitSpecs, detectedNiches) {
   // Message analysis — 55 pts max.
   // SIGNAL over LENGTH (per Colter, 2026-06-11): the message section is the most
@@ -2953,6 +2963,16 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
     const p = pool.filter(t => t.offersVirtual);
     if (p.length > 0) pool = p;
   }
+
+  // Hard filter: insurance — only therapists who accept the client's plan
+  if (!isOtherInsurance) {
+    const insKey = normalizeInsuranceForMatch(insurance);
+    if (insKey) {
+      const p = pool.filter(t => (t.insurance || []).includes(insKey));
+      if (p.length > 0) pool = p;
+    }
+  }
+
   // Intern rule — interns are for the low-cost pathway ONLY.
   // 'prefer'   → client asked for low-cost: interns first, licensed as fallback
   // 'open'     → cost question was shown, client open to it: interns stay in pool
@@ -3594,11 +3614,11 @@ function analyzeMatch(t, ctx) {
   else if ((gp === 4 || gp === 5) && t.gender === 'female') pros.push('Female therapist');
 
   // Insurance — "Other" means we'll verify manually; skip the gate check
-  const ins = insurance || '';
-  if (ins && ins.toLowerCase() !== 'other') {
+  const insKey = normalizeInsuranceForMatch(insurance);
+  if (insKey && insurance && insurance.toLowerCase() !== 'other') {
     if (t.insurance.length === 0) issues.push('Does not bill insurance directly');
-    else if (t.insurance.includes(ins.toLowerCase())) pros.push(`Accepts ${ins}`);
-    else issues.push(`Does not accept ${ins}`);
+    else if (t.insurance.includes(insKey)) pros.push(`Accepts ${insurance}`);
+    else issues.push(`Does not accept ${insurance}`);
   }
 
   // Virtual
