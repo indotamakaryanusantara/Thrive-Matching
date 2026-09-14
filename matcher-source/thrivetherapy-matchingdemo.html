@@ -357,10 +357,10 @@
     </div>
   </div>
 
-  <!-- STEP 1b: Intensive Sub-Menu -->
+  <!-- STEP 1b: Other Intensive — Your Goals (secondary service) -->
   <div class="step" id="step1b">
-    <div class="step-title">Which program are you interested in?</div>
-    <div class="step-subtitle">Each of these programs has a dedicated team — we'll get you connected to the right one.</div>
+    <div class="step-title">Your Goals</div>
+    <div class="step-subtitle">Select the intensive program that fits what you're looking for — we'll use this to match you with a therapist.</div>
     <div class="service-grid" style="grid-template-columns: 1fr 1fr;">
       <div class="service-card" data-value="ketamine" onclick="selectIntensive(this)">
         <div class="sc-icon">🌿</div>
@@ -420,10 +420,10 @@
     </div>
   </div>
 
-  <!-- STEP COUPLES SPECIALTY: Focus Area -->
+  <!-- STEP COUPLES SPECIALTY: Your Goals -->
   <div class="step" id="stepCouplesSpecialty">
-    <div class="step-title">What brings you in?</div>
-    <div class="step-subtitle">Select the areas you'd most like to focus on — you can pick more than one.</div>
+    <div class="step-title">Your Goals</div>
+    <div class="step-subtitle">Select the areas you'd most like to focus on — you can pick more than one. We'll use these to match you with a couples therapist.</div>
     <div class="option-cards" id="couplesFocusCards" style="flex-wrap:wrap; gap:10px;">
       <div class="opt-card" data-val="Affair / Betrayal Recovery" onclick="toggleCouplessFocus(this)">Affair / Betrayal Recovery</div>
       <div class="opt-card" data-val="Communication & Conflict" onclick="toggleCouplessFocus(this)">Communication &amp; Conflict</div>
@@ -1896,6 +1896,25 @@ function nextFromStep1b() {
   showProgramContact(intensiveType);
 }
 
+// Couples Your Goals → specialty / niche signals for Phase 1 matching
+const COUPLES_GOAL_TO_MATCH = {
+  'Affair / Betrayal Recovery': { specialty: 'couples', niches: ['infidelity', 'betrayal trauma'] },
+  'Communication & Conflict':   { specialty: 'couples', niches: ['communication'] },
+  'Family Dynamics':            { specialty: 'couples', niches: ['blended families', 'parenting'] },
+  'Sex & Intimacy':             { specialty: 'couples', niches: ['intimacy'] },
+  'Life Transitions':           { specialty: 'life transitions', niches: ['couples transitions'] },
+  'Premarital':                 { specialty: 'couples', niches: ['premarital'] },
+  'Other':                      { specialty: 'couples', niches: [] },
+};
+
+// Other Intensive Your Goals → clinical areas for therapist matching
+const INTENSIVE_GOAL_TO_MATCH = {
+  ketamine:          { specialty: 'depression', niches: [], label: 'Ketamine-Assisted Therapy' },
+  ocd_intensive:     { specialty: 'ocd', niches: [], label: 'OCD Intensive' },
+  couples_intensive: { specialty: 'couples', niches: ['couples intensives'], label: 'Couples Intensive' },
+  trauma_intensive:  { specialty: 'trauma', niches: [], label: 'Trauma Intensive' },
+};
+
 // ─── Couples flow ────────────────────────────────────────────────────────────
 let couplesFocus = [];
 
@@ -1953,6 +1972,8 @@ function backFromStep4() {
     document.getElementById('stepCouplesSpecialty').classList.add('active');
     updateProgress(3);
     window.scrollTo(0, 0);
+  } else if (serviceType === 'other_intensive') {
+    showProgramContact(intensiveType);
   } else {
     goToStep(3);
   }
@@ -2369,10 +2390,10 @@ function showProgramContact(type) {
   };
   const subtitles = {
     iop:              'Our IOP team will reach out within 1 business day to walk you through the program and answer any questions.',
-    ocd_intensive:    'Our OCD Intensive team will be in touch within 1 business day to explain the program and discuss next steps.',
-    ketamine:         'Our KAP team will reach out within 1 business day to answer your questions and help determine if ketamine-assisted therapy is a good fit.',
-    couples_intensive:'Our Couples Intensive team will be in touch within 1 business day to walk you through the format and schedule.',
-    trauma_intensive: 'Our Trauma Intensive team will reach out within 1 business day to discuss the program and what to expect.',
+    ocd_intensive:    'Next we\'ll gather a few details, then match you with a therapist for our OCD Intensive program.',
+    ketamine:         'Next we\'ll gather a few details, then match you with a therapist for Ketamine-Assisted Therapy.',
+    couples_intensive:'Next we\'ll gather a few details, then match you with a therapist for our Couples Intensive program.',
+    trauma_intensive: 'Next we\'ll gather a few details, then match you with a therapist for our Trauma Intensive program.',
   };
   document.getElementById('pcTitle').textContent = titles[type] || 'Tell us about yourself';
   document.getElementById('pcSubtitle').textContent = subtitles[type] || 'Our team will be in touch shortly.';
@@ -2407,7 +2428,18 @@ function submitProgramContact() {
   if (!name || !phone || !email || !email.includes('@') || !age || !loc) return;
 
   const type = document.getElementById('stepProgramContact').dataset.programType;
-  // Directly routed intensives — show specific therapist profile
+  // Other Intensive: secondary Your Goals → preferences → therapist match (Yoshi 2026-09)
+  if (serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[type]) {
+    const locVal = parseInt(loc.dataset.val, 10);
+    if (!isNaN(locVal)) locationPref = locVal;
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step4').classList.add('active');
+    document.getElementById('progressWrap').style.display = '';
+    updateProgress(4);
+    window.scrollTo(0, 0);
+    return;
+  }
+  // Legacy: hard-route known intensives (fallback if serviceType not set)
   if (INTENSIVE_ROUTING[type]) {
     showIntensiveTherapistResult(type, name);
   } else {
@@ -2552,11 +2584,28 @@ function runMatch() {
   let clientAge, ranked, notes;
   if (serviceType === 'couples') {
     clientAge = parseInt(document.getElementById('couplesAge').value) || 30;
-    ranked    = [{ id:'couples', label:'Couples Therapy' }];
-    const focusText = Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
-                 .map(el => el.textContent.toLowerCase()).join(' ');
+    const selectedGoals = Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
+      .map(el => el.dataset.val);
+    // Your Goals → ranked specialties for matching (Yoshi Phase 1)
+    const seen = new Set();
+    ranked = [];
+    selectedGoals.forEach(goal => {
+      const map = COUPLES_GOAL_TO_MATCH[goal];
+      if (!map) return;
+      if (!seen.has(map.specialty)) {
+        seen.add(map.specialty);
+        ranked.push({ id: map.specialty, label: goal });
+      }
+    });
+    if (ranked.length === 0) ranked = [{ id: 'couples', label: 'Couples Therapy' }];
+    const focusText = selectedGoals.join(' ').toLowerCase();
     const couplesMsg = (document.getElementById('couplesMessage').value || '').toLowerCase();
     notes = [focusText, couplesMsg].filter(Boolean).join(' ');
+  } else if (serviceType === 'other_intensive') {
+    clientAge = parseInt(document.getElementById('pcAge').value) || 30;
+    const goal = INTENSIVE_GOAL_TO_MATCH[intensiveType] || { specialty: 'anxiety', niches: [], label: intensiveType };
+    ranked = [{ id: goal.specialty, label: goal.label }];
+    notes = (goal.label + ' ' + (goal.niches || []).join(' ')).toLowerCase();
   } else {
     clientAge = parseInt(document.getElementById('fage').value) || 25;
     ranked    = rankedSelections;
@@ -2635,6 +2684,17 @@ function runMatch() {
   Object.entries(NICHE_KEYWORDS).forEach(([kw, tags]) => {
     if (nicheKwHits(notes, kw)) tags.forEach(t => detectedNiches.add(t));
   });
+  // Couples / Intensive Your Goals → explicit niche tags (Yoshi Phase 1)
+  if (serviceType === 'couples') {
+    Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
+      .map(el => el.dataset.val)
+      .forEach(goal => {
+        const map = COUPLES_GOAL_TO_MATCH[goal];
+        if (map) map.niches.forEach(n => detectedNiches.add(n));
+      });
+  } else if (serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[intensiveType]) {
+    (INTENSIVE_GOAL_TO_MATCH[intensiveType].niches || []).forEach(n => detectedNiches.add(n));
+  }
 
   // ── Explicit niche/language request → HARD requirement ──────────────────────
   // If the client actively asks for a niche or language (e.g. "I want a therapist
@@ -3084,8 +3144,14 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
     let complexBoost = 0;
     if (t.complexOnly && complexCase && t.caseload !== 'closed') complexBoost = 12;
 
+    // Other Intensive Your Goals — soft boost known program specialists (not hard-route)
+    let intensiveBoost = 0;
+    if (serviceType === 'other_intensive' && intensiveType && INTENSIVE_ROUTING[intensiveType]) {
+      if (t.name === INTENSIVE_ROUTING[intensiveType]) intensiveBoost = 15;
+    }
+
     // ── Total & Normalize to 100 ──────────────────────────────────
-    const raw = msgScore + finalSpec + finalLocation + genderScore + svcScore + complexBoost;
+    const raw = msgScore + finalSpec + finalLocation + genderScore + svcScore + complexBoost + intensiveBoost;
     const maxPossible = 55 + (topPriority === 'specialty' ? 30 : 20) + (topPriority === 'location' ? 25 : 15) + 5 + 5;
     const pct = Math.min(99, Math.round((raw / maxPossible) * 100));
 
@@ -3380,7 +3446,9 @@ function showRequestedClosedResult(closedTherapist, backupResult) {
 
   const nameField = serviceType === 'couples'
     ? document.getElementById('couplesName').value.trim()
-    : document.getElementById('fname').value.trim();
+    : (serviceType === 'other_intensive'
+      ? document.getElementById('pcName').value.trim()
+      : document.getElementById('fname').value.trim());
   const firstName = nameField.split(' ')[0] || 'there';
   const therapistFirst = closedTherapist.name.split(' ')[0];
 
@@ -3446,7 +3514,9 @@ function showMatchResult(result) {
 
   const nameField = serviceType === 'couples'
     ? document.getElementById('couplesName').value.trim()
-    : document.getElementById('fname').value.trim();
+    : (serviceType === 'other_intensive'
+      ? document.getElementById('pcName').value.trim()
+      : document.getElementById('fname').value.trim());
   const firstName = nameField.split(' ')[0];
   document.getElementById('resultTitle').textContent = result
     ? `We've got a great match for you, ${firstName}!`
@@ -3527,8 +3597,13 @@ function showMatchResult(result) {
 
   submitInquiryOnce(collectInquiryPayload({
     selectedTherapist: result.therapist.name,
-    formPath: 'match_result',
-    matchScoresJson: JSON.stringify({ pct: result.pct, score: result.score }),
+    formPath: serviceType === 'other_intensive' && intensiveType
+      ? ('intensive_' + intensiveType + '_match')
+      : 'match_result',
+    matchScoresJson: JSON.stringify({ pct: result.pct, score: result.score, intensiveType: intensiveType || null }),
+    notes: serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[intensiveType]
+      ? INTENSIVE_GOAL_TO_MATCH[intensiveType].label
+      : '',
   }));
   window.scrollTo(0, 0);
 }
@@ -3993,7 +4068,7 @@ function collectInquiryPayload(extra) {
     patientAge: document.getElementById('fage')?.value || document.getElementById('couplesAge')?.value || document.getElementById('grpAge')?.value || document.getElementById('iopAge')?.value || document.getElementById('pcAge')?.value || '',
     preferredLocation: preferredLocation,
     insurance: insCard ? insCard.dataset.val : '',
-    freeTextMessage: (document.getElementById('fmore')?.value || document.getElementById('couplesMessage')?.value || document.getElementById('grpRecommendNote')?.value || document.getElementById('iopMessage')?.value || document.getElementById('pcMessage')?.value || '').trim(),
+    freeTextMessage: (document.getElementById('fmore')?.value || document.getElementById('couplesMessage')?.value || document.getElementById('grpRecommendNote')?.value || document.getElementById('iopMessage')?.value || document.getElementById('pcMessage')?.value || (serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[intensiveType] ? INTENSIVE_GOAL_TO_MATCH[intensiveType].label : '') || '').trim(),
     matchedTherapist1: matches[0] && matches[0].therapist ? matches[0].therapist.name : '',
     matchedTherapist2: matches[1] && matches[1].therapist ? matches[1].therapist.name : '',
     matchedTherapist3: matches[2] && matches[2].therapist ? matches[2].therapist.name : '',
@@ -4001,8 +4076,8 @@ function collectInquiryPayload(extra) {
     matchedTherapistEmail: '',
     selectedGroups: '',
     matchScoresJson: '',
-    formPath: '',
-    notes: '',
+    formPath: serviceType === 'other_intensive' && intensiveType ? ('intensive_' + intensiveType + '_match') : '',
+    notes: serviceType === 'other_intensive' && intensiveType ? (INTENSIVE_GOAL_TO_MATCH[intensiveType]?.label || intensiveType) : '',
   }, extra);
 
   if (!payload.matchedTherapistEmail && payload.selectedTherapist) {
