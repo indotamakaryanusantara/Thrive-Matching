@@ -420,10 +420,10 @@
     </div>
   </div>
 
-  <!-- STEP COUPLES SPECIALTY: Focus Area -->
+  <!-- STEP COUPLES SPECIALTY: Your Goals (Phase 1 — Individual/Couples only) -->
   <div class="step" id="stepCouplesSpecialty">
-    <div class="step-title">What brings you in?</div>
-    <div class="step-subtitle">Select the areas you'd most like to focus on — you can pick more than one.</div>
+    <div class="step-title">Your Goals</div>
+    <div class="step-subtitle">Select the areas you'd most like to focus on — you can pick more than one. We'll use these to match you with a couples therapist.</div>
     <div class="option-cards" id="couplesFocusCards" style="flex-wrap:wrap; gap:10px;">
       <div class="opt-card" data-val="Affair / Betrayal Recovery" onclick="toggleCouplessFocus(this)">Affair / Betrayal Recovery</div>
       <div class="opt-card" data-val="Communication & Conflict" onclick="toggleCouplessFocus(this)">Communication &amp; Conflict</div>
@@ -1379,6 +1379,18 @@ const THERAPISTS = [
 
 // Hard filters — client MUST match therapist specialty
 const HARD_FILTER_SPECIALTIES = ["ocd","trauma","couples","eating disorders"];
+
+// Couples Your Goals → specialty / niche signals for Phase 1 matching
+// (IOP / Intensive / Groups intentionally NOT mapped here — HOLD)
+const COUPLES_GOAL_TO_MATCH = {
+  'Affair / Betrayal Recovery': { specialty: 'couples', niches: ['infidelity', 'betrayal trauma'] },
+  'Communication & Conflict':   { specialty: 'couples', niches: ['communication'] },
+  'Family Dynamics':            { specialty: 'couples', niches: ['blended families', 'parenting'] },
+  'Sex & Intimacy':             { specialty: 'couples', niches: ['intimacy'] },
+  'Life Transitions':           { specialty: 'life transitions', niches: ['couples transitions'] },
+  'Premarital':                 { specialty: 'couples', niches: ['premarital'] },
+  'Other':                      { specialty: 'couples', niches: [] },
+};
 
 // Niche keyword map — words found in client notes → boost therapists with matching niche tags
 // Word-START boundary matching for niche keywords (same approach as specialties):
@@ -2552,9 +2564,21 @@ function runMatch() {
   let clientAge, ranked, notes;
   if (serviceType === 'couples') {
     clientAge = parseInt(document.getElementById('couplesAge').value) || 30;
-    ranked    = [{ id:'couples', label:'Couples Therapy' }];
-    const focusText = Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
-                 .map(el => el.textContent.toLowerCase()).join(' ');
+    const selectedGoals = Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
+      .map(el => el.dataset.val);
+    // Your Goals → ranked specialties for matching (Phase 1 — Couples only)
+    const seen = new Set();
+    ranked = [];
+    selectedGoals.forEach(goal => {
+      const map = COUPLES_GOAL_TO_MATCH[goal];
+      if (!map) return;
+      if (!seen.has(map.specialty)) {
+        seen.add(map.specialty);
+        ranked.push({ id: map.specialty, label: goal });
+      }
+    });
+    if (ranked.length === 0) ranked = [{ id: 'couples', label: 'Couples Therapy' }];
+    const focusText = selectedGoals.join(' ').toLowerCase();
     const couplesMsg = (document.getElementById('couplesMessage').value || '').toLowerCase();
     notes = [focusText, couplesMsg].filter(Boolean).join(' ');
   } else {
@@ -2635,6 +2659,15 @@ function runMatch() {
   Object.entries(NICHE_KEYWORDS).forEach(([kw, tags]) => {
     if (nicheKwHits(notes, kw)) tags.forEach(t => detectedNiches.add(t));
   });
+  // Couples Your Goals → explicit niche tags (Phase 1 — not Intensive/IOP/Groups)
+  if (serviceType === 'couples') {
+    Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
+      .map(el => el.dataset.val)
+      .forEach(goal => {
+        const map = COUPLES_GOAL_TO_MATCH[goal];
+        if (map) map.niches.forEach(n => detectedNiches.add(n));
+      });
+  }
 
   // ── Explicit niche/language request → HARD requirement ──────────────────────
   // If the client actively asks for a niche or language (e.g. "I want a therapist
@@ -2687,14 +2720,28 @@ function runMatch() {
     showMatchResult(null); return;
   }
 
-  // ── Niche conflict detection ───────────────────────────────────────────────
-  // If the client expressed a niche preference (e.g. "Spanish-speaking", "Christian therapist")
-  // but the top matches don't include a niche therapist (e.g. because they also said "only male"),
-  // present BOTH paths so the client can choose what matters most.
+  // ── Phase 1 result routing (Individual + Couples only) ─────────────────────
+  // Yoshi 2026-09-03: prefer one best match; if not a clear winner, show multiple
+  // ranked best → next. Skip niche/clinical conflict screens for Phase 1 go-live.
+  // IOP / Intensive / Groups do not use this path.
+  if (serviceType === 'individual' || serviceType === 'couples') {
+    const CLEAR_WINNER_MARGIN = 6;
+    const margin = topMatches.length > 1
+      ? topMatches[0].score - topMatches[1].score
+      : Infinity;
+    if (margin >= CLEAR_WINNER_MARGIN || topMatches.length === 1) {
+      showMatchResult(topMatches[0]);
+    } else {
+      // Keep score order — top card is the best option (do not shuffle)
+      showOptionsScreen(topMatches);
+    }
+    return;
+  }
+
+  // ── Legacy result routing (non Phase-1 paths, if any) ───────────────────────
   if (detectedNiches.size > 0) {
     const topHasNiche = topMatches.some(m => m.therapist.niche.some(n => detectedNiches.has(n)));
     if (!topHasNiche) {
-      // Get properly-scored niche matches (no gender constraint, niche hard filter on)
       const nicheResults = findMatch(ranked, locationPref, insurance, 3 /*no gender pref*/, virtualPref,
         insuranceFlex, clientAge, detectedNiches, severityTier, notes, topPriority, serviceType, internPref, true /*forceNicheFilter*/);
       const nicheMatches = nicheResults.filter(m => m.therapist.niche.some(n => detectedNiches.has(n)));
@@ -2712,12 +2759,6 @@ function runMatch() {
     }
   }
 
-  // ── Tie handling (per Colter, 2026-06-11) ──────────────────────────────────
-  // Mirrors how intake actually works: caseload need is already in the score
-  // (building +5 / refill +4 / open +3), so therapists tied at the top are peers
-  // in both fit AND need. Rather than letting roster order silently decide (which
-  // sent every tie to the same person), present the tied therapists and let the
-  // client choose. Card order is shuffled so no one is always listed first.
   const tieGroup = topMatches.filter(m => m.score === topMatches[0].score).slice(0, 3);
   if (tieGroup.length > 1) {
     for (let i = tieGroup.length - 1; i > 0; i--) {
@@ -2728,10 +2769,6 @@ function runMatch() {
     return;
   }
 
-  // ── Clinical-vs-logistics check (per Colter, 2026-06-11) ────────────────────
-  // If relaxing the client's logistics (gender, location, virtual, insurance)
-  // surfaces a meaningfully stronger CLINICAL match, the client gets the choice —
-  // with candid language about exactly what doesn't line up.
   const hasLogisticsPrefs = genderPref !== 3 || locationPref !== 3 || virtualPref !== 2
     || (insurance && insurance.toLowerCase() !== 'other');
   if (hasLogisticsPrefs) {
@@ -2741,7 +2778,6 @@ function runMatch() {
     if (cb && cb.therapist.name !== topMatches[0].therapist.name) {
       const clinFit = m => (m.breakdown.msgScore || 0) + (m.breakdown.specScore || 0);
       const cbIssues = analyzeMatch(cb.therapist, lastMatchContext).issues;
-      // Meaningfully stronger clinically AND actually mismatched on logistics
       if (clinFit(cb) >= clinFit(topMatches[0]) + 8 && cbIssues.length > 0) {
         showConflictScreen([
           { label: 'Best Fit For Your Preferences', matches: [topMatches[0]] },
@@ -2755,10 +2791,7 @@ function runMatch() {
     }
   }
 
-  // ── Clear winner → send the single match (per Colter, 2026-06-11) ──────────
-  // If #1 has a meaningful score lead, send them alone — a minor logistics
-  // quirk doesn't warrant a choice screen. Options only when scores are close.
-  const CLEAR_WINNER_MARGIN = 6; // raw score points
+  const CLEAR_WINNER_MARGIN = 6;
   const margin = topMatches.length > 1
     ? topMatches[0].score - topMatches[1].score
     : Infinity;
@@ -2773,12 +2806,12 @@ function runMatch() {
 }
 
 // implicitSpecs: Map<specialtyId, confidence> from detectImplicitSpecialties()
-// How much credit a therapist gets for a clinical area:
-// 1.0 = listed specialty, 0.5 = comfortable seeing, 0 = neither
-// ("prefer not to see" is a hard exclusion upstream in findMatch)
+// Phase 1 weights (Yoshi): Specialize/Passion = strongest, Comfortable = good,
+// Blank/not rated = no positive match (0). Prefer-not is hard-excluded upstream.
+// Ratio 3:1 keeps specialize clearly above comfortable.
 function specCredit(t, id) {
-  if (t.specialties.includes(id)) return 1;
-  if ((t.comfortable || []).includes(id)) return 0.5;
+  if (t.specialties.includes(id)) return 3;
+  if ((t.comfortable || []).includes(id)) return 1;
   return 0;
 }
 
@@ -2917,16 +2950,17 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
     if (filtered.length > 0) pool = filtered;
   }
 
-  // Hard filter: gender "ONLY" — placed BEFORE the severity filter so severity
-  // bends, not gender (per Colter, 2026-06-11): "male therapist only" + critical
-  // with no male rating-3 available → best male rating-2, never a female match.
-  // ("Prefer" stays a soft scoring signal.)
-  if (genderPref === 1) {
-    const p = pool.filter(t => t.gender === 'male');
-    if (p.length > 0) pool = p;
-  } else if (genderPref === 5) {
-    const p = pool.filter(t => t.gender === 'female');
-    if (p.length > 0) pool = p;
+  // Gender "ONLY" — Phase 1 (Individual/Couples): soft only so adequate options remain
+  // when preferred gender is unavailable (Yoshi 2026-09-03). UI left as-is.
+  const phase1SoftGender = serviceType === 'individual' || serviceType === 'couples';
+  if (!phase1SoftGender) {
+    if (genderPref === 1) {
+      const p = pool.filter(t => t.gender === 'male');
+      if (p.length > 0) pool = p;
+    } else if (genderPref === 5) {
+      const p = pool.filter(t => t.gender === 'female');
+      if (p.length > 0) pool = p;
+    }
   }
 
   // Severity filter — driven by therapist rating (1=newer, 2=solid generalist, 3=advanced)
@@ -3052,22 +3086,23 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
     // "Virtual only" → virtual therapists already hard-filtered in; give them full locScore
     if (virtualPref === 3 && t.offersVirtual) locScore = 10;
 
-    const caseloadPts = { building:5, refill:4, open:3, closed:0 }[t.caseload] || 0;
+    // Phase 1 availability order (Yoshi): Building > Open > Refilling > Closed
+    const caseloadPts = { building:5, open:4, refill:3, closed:0 }[t.caseload] || 0;
     const locationScore = locScore + caseloadPts;
 
     // ── 4. Gender Preference (5 pts) ──────────────────────────────
     // 1=only male, 2=prefer male, 3=no pref, 4=prefer female, 5=only female
-    // "prefer" (2/4) still keeps opposite gender fully in play — just 3 pts vs 5
+    // Phase 1: "only" is soft (boost, not hard exclude) so options remain available
     let genderScore = 0;
     if      (genderPref === 3)                              genderScore = 5; // no pref
-    else if (genderPref === 1 && t.gender === 'male')      genderScore = 5; // only male — match
-    else if (genderPref === 2 && t.gender === 'male')      genderScore = 5; // prefer male — match
-    else if (genderPref === 2 && t.gender !== 'male')      genderScore = 3; // prefer male — still eligible
-    else if (genderPref === 4 && t.gender === 'female')    genderScore = 5; // prefer female — match
-    else if (genderPref === 4 && t.gender !== 'female')    genderScore = 3; // prefer female — still eligible
-    else if (genderPref === 5 && t.gender === 'female')    genderScore = 5; // only female — match
-    // genderPref 1 + non-male, or 5 + non-female → 0 (hard filtered above)
-
+    else if (genderPref === 1 && t.gender === 'male')      genderScore = 5;
+    else if (genderPref === 1 && t.gender !== 'male')      genderScore = phase1SoftGender ? 1 : 0;
+    else if (genderPref === 2 && t.gender === 'male')      genderScore = 5;
+    else if (genderPref === 2 && t.gender !== 'male')      genderScore = 3;
+    else if (genderPref === 4 && t.gender === 'female')    genderScore = 5;
+    else if (genderPref === 4 && t.gender !== 'female')    genderScore = 3;
+    else if (genderPref === 5 && t.gender === 'female')    genderScore = 5;
+    else if (genderPref === 5 && t.gender !== 'female')    genderScore = phase1SoftGender ? 1 : 0;
     // ── 5. Service Type (5 pts) ───────────────────────────────────
     const svcScore = (serviceType && t.populations) ? 5 : 3; // simplified
 

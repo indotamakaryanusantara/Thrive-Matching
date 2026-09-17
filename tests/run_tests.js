@@ -32,7 +32,8 @@ eval([
   grab('specCredit', 'fn'), grab('normalizeInsuranceForMatch', 'fn'),
   grab('analyzeMessageScore', 'fn'), grab('findMatch', 'fn'),
   grab('analyzeMatch', 'fn'), grab('buildConversationalBlurb', 'fn'),
-  'Object.assign(globalThis, {THERAPISTS, GROUPS, GROUP_KEYWORDS, NICHE_KEYWORDS, nicheKwHits, detectImplicitSpecialties, getSeverityTier, specCredit, analyzeMessageScore, findMatch, analyzeMatch, buildConversationalBlurb});'
+  src.match(/const COUPLES_GOAL_TO_MATCH = \{[\s\S]*?\n\};/)[0],
+  'Object.assign(globalThis, {THERAPISTS, GROUPS, GROUP_KEYWORDS, NICHE_KEYWORDS, nicheKwHits, detectImplicitSpecialties, getSeverityTier, specCredit, analyzeMessageScore, findMatch, analyzeMatch, buildConversationalBlurb, COUPLES_GOAL_TO_MATCH});'
 ].join('\n'));
 
 let passed = 0, failed = 0;
@@ -88,12 +89,86 @@ console.log('\n— Avoid lists (prefer-not-to-see = hard exclusion) —');
   check('ALL therapists avoid -> zero matches (human follow-up)', res.length === 0);
   THERAPISTS.forEach(t => { t.avoid = t.__av; delete t.__av; }); }
 
-console.log('\n— Gender ONLY is hard; severity bends —');
-{ const troy = THERAPISTS.find(t => t.name === 'Troy Zaslove');
-  const orig = troy.caseload; troy.caseload = 'open';
-  const { res } = match('i have been cutting myself and feel hopeless', { gender: 1 });
-  check('male-only critical -> male match even at rating 2', res.length > 0 && res.every(r => r.therapist.gender === 'male'));
-  troy.caseload = orig; }
+console.log('\n— Phase 1: gender ONLY is soft for Individual/Couples —');
+{ // When all males are closed, female therapists must still be eligible (soft, not hard exclude)
+  THERAPISTS.forEach(t => {
+    if (t.gender === 'male') { t.__caseload = t.caseload; t.caseload = 'closed'; }
+  });
+  const { res } = match('i feel anxious most days', { gender: 1, svc: 'individual' });
+  check('male-only soft -> females still match when males closed',
+    res.length > 0 && res.every(r => r.therapist.gender === 'female'));
+  THERAPISTS.forEach(t => {
+    if (t.__caseload !== undefined) { t.caseload = t.__caseload; delete t.__caseload; }
+  }); }
+{ // Soft scoring: mismatch still eligible at low gender pts; match gets full pts
+  const { res } = match('i feel anxious most days', { gender: 1, svc: 'individual' });
+  check('male-only soft -> female candidates keep genderScore 1 (not hard-excluded)',
+    res.length > 0 && res.filter(r => r.therapist.gender === 'female')
+      .every(r => r.breakdown.genderScore === 1));
+  // Give males the same clinical signal so gender tiebreaker can surface
+  const males = THERAPISTS.filter(t => t.gender === 'male');
+  males.forEach(t => {
+    t.__spec = t.specialties.slice();
+    t.__comf = (t.comfortable || []).slice();
+    t.__case = t.caseload;
+    t.specialties = ['anxiety'];
+    t.comfortable = [];
+    t.caseload = 'open';
+  });
+  const { res: res2 } = match('i feel anxious most days', {
+    gender: 1, svc: 'individual', ranked: [{ id: 'anxiety', label: 'Anxiety' }],
+  });
+  check('male-only soft -> male wins when clinical fit is equalized',
+    res2.length > 0 && res2[0].therapist.gender === 'male' && res2[0].breakdown.genderScore === 5);
+  males.forEach(t => {
+    t.specialties = t.__spec; t.comfortable = t.__comf; t.caseload = t.__case;
+    delete t.__spec; delete t.__comf; delete t.__case;
+  }); }
+
+console.log('\n— Phase 1: caseload Building > Open > Refill —');
+check('specialize credit > comfortable credit',
+  (() => {
+    const t = { specialties: ['anxiety'], comfortable: ['depression'], avoid: [] };
+    return specCredit(t, 'anxiety') > specCredit(t, 'depression') && specCredit(t, 'ocd') === 0;
+  })());
+{ const a = THERAPISTS.find(t => t.specialties.includes('anxiety') && (t.insurance || []).includes('aetna'));
+  if (a) {
+    // Isolate one therapist so caseload deltas aren't lost outside top-3 slice
+    THERAPISTS.forEach(t => {
+      t.__case = t.caseload;
+      if (t.name !== a.name) t.caseload = 'closed';
+    });
+    const scoreAt = (c) => {
+      a.caseload = c;
+      return match('i feel anxious most days', { ranked: [{ id: 'anxiety', label: 'Anxiety' }] }).res
+        .find(r => r.therapist.name === a.name)?.score;
+    };
+    const buildingScore = scoreAt('building');
+    const openScore = scoreAt('open');
+    const refillScore = scoreAt('refill');
+    THERAPISTS.forEach(t => { t.caseload = t.__case; delete t.__case; });
+    check('Building score > Open > Refill for same therapist',
+      buildingScore > openScore && openScore > refillScore);
+  } else {
+    check('Building score > Open > Refill for same therapist', false);
+  }
+}
+
+console.log('\n— Phase 1 Couples Your Goals map —');
+check('Affair goal maps to infidelity niches',
+  (COUPLES_GOAL_TO_MATCH['Affair / Betrayal Recovery'].niches || []).includes('infidelity'));
+check('Premarital goal maps to premarital niche',
+  (COUPLES_GOAL_TO_MATCH['Premarital'].niches || []).includes('premarital'));
+check('no Intensive goal map in Couples Phase 1 deploy',
+  typeof globalThis.INTENSIVE_GOAL_TO_MATCH === 'undefined');
+{ const INFID = ['infidelity', 'betrayal trauma'];
+  const { res } = match('we need help', {
+    svc: 'couples',
+    ranked: [{ id: 'couples', label: 'Affair / Betrayal Recovery' }],
+    niches: new Set(INFID),
+  });
+  check('Couples Affair niches → only infidelity specialists',
+    res.length > 0 && res.every(r => r.therapist.niche.some(n => INFID.includes(n)))); }
 
 console.log('\n— Insurance hard filter —');
 { const { res } = match('i feel anxious most days', { ins: 'bcbs' });
