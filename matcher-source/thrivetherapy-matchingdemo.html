@@ -2578,13 +2578,12 @@ function runMatch() {
       }
     });
     if (ranked.length === 0) ranked = [{ id: 'couples', label: 'Couples Therapy' }];
-    const focusText = selectedGoals.join(' ').toLowerCase();
-    const couplesMsg = (document.getElementById('couplesMessage').value || '').toLowerCase();
-    notes = [focusText, couplesMsg].filter(Boolean).join(' ');
+    // Phase 1 message-first: only free-text is "Tell us a bit more" — not goal labels
+    notes = (document.getElementById('couplesMessage').value || '').toLowerCase();
   } else {
     clientAge = parseInt(document.getElementById('fage').value) || 25;
     ranked    = rankedSelections;
-    notes     = document.getElementById('fmore').value.toLowerCase();
+    notes     = (document.getElementById('fmore').value || '').toLowerCase();
   }
 
   // ── Detect therapist name in message ─────────────────────────────────────
@@ -2654,12 +2653,13 @@ function runMatch() {
     }
   }
 
-  // Detect niche keywords in notes
-  const detectedNiches = new Set();
+  // Detect niche keywords in free-text message only (Phase 1 message-first)
+  const messageNiches = new Set();
   Object.entries(NICHE_KEYWORDS).forEach(([kw, tags]) => {
-    if (nicheKwHits(notes, kw)) tags.forEach(t => detectedNiches.add(t));
+    if (nicheKwHits(notes, kw)) tags.forEach(t => messageNiches.add(t));
   });
-  // Couples Your Goals → explicit niche tags (Phase 1 — not Intensive/IOP/Groups)
+  // Combined niches: message + Couples Your Goals (goals are next criteria, not message)
+  const detectedNiches = new Set(messageNiches);
   if (serviceType === 'couples') {
     Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
       .map(el => el.dataset.val)
@@ -2674,7 +2674,7 @@ function runMatch() {
   // who speaks Spanish", "I need someone faith-based"), that's a dealbreaker, not a
   // bonus. Only therapists with that niche should surface. Incidental keyword hits
   // without request wording stay a soft scoring signal (handled in analyzeMessageScore).
-  const explicitNicheRequest = detectedNiches.size > 0 &&
+  const explicitNicheRequest = messageNiches.size > 0 &&
     /\b(want|wants|wanted|prefer|prefers|need|needs|looking for|hoping for|specifically|important|matters|must|require|requires|only|speaks?|speaking|fluent|bilingual|quiero|necesito|busco|prefiero|que hable|habla)\b/i.test(notes);
 
   const specIds         = ranked.map(r => r.id);
@@ -2806,12 +2806,13 @@ function runMatch() {
 }
 
 // implicitSpecs: Map<specialtyId, confidence> from detectImplicitSpecialties()
-// Phase 1 weights (Yoshi): Specialize/Passion = strongest, Comfortable = good,
-// Blank/not rated = no positive match (0). Prefer-not is hard-excluded upstream.
-// Ratio 3:1 keeps specialize clearly above comfortable.
+// How much credit a therapist gets for a clinical area (HTML asli Yoshi/Colter):
+// 1.0 = Specialize/Passion, 0.5 = Comfortable seeing, 0 = Blank/not rated
+// Prefer-not is a hard exclusion upstream in findMatch.
+// Phase 1 Yoshi hanya minta hierarki kualitatif — angka tetap rumus asli (bukan 3/1).
 function specCredit(t, id) {
-  if (t.specialties.includes(id)) return 3;
-  if ((t.comfortable || []).includes(id)) return 1;
+  if (t.specialties.includes(id)) return 1;
+  if ((t.comfortable || []).includes(id)) return 0.5;
   return 0;
 }
 
@@ -3031,32 +3032,77 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
 
   // (implicitSpecs already detected at top of findMatch)
 
-  const scored = pool.map(t => {
-    // ── 1. Message Analysis (55 pts) ──────────────────────────────
-    // implicitSpecs is now the core signal inside this function
-    const msgScore = analyzeMessageScore(notes, t, implicitSpecs, detectedNiches);
+  // Phase 1 message-first (Individual + Couples): free-text is priority #1 vs
+  // Specialize / Comfortable / Prefer-not. Empty or no usable signal → skip to
+  // Your Goals / checkboxes (next criteria). Yoshi 2026-08-28 / client 2026-09-03.
+  const phase1MessageFirst = serviceType === 'individual' || serviceType === 'couples';
+  const messageNichesForScore = new Set();
+  if (phase1MessageFirst) {
+    Object.entries(NICHE_KEYWORDS).forEach(([kw, tags]) => {
+      if (nicheKwHits(notes, kw)) tags.forEach(t => messageNichesForScore.add(t));
+    });
+  }
+  const messageHasStyle = phase1MessageFirst && (
+    /understand|root cause|why|childhood|past|pattern/i.test(notes) ||
+    /tool|technique|skill|strategy|practical|learn|coping/i.test(notes) ||
+    /scared|lost|finally|tried everything|hopeless|desperate|at my worst/i.test(notes)
+  );
+  const messageHasSignal = phase1MessageFirst && (
+    implicitSpecs.size > 0 || messageNichesForScore.size > 0 || messageHasStyle
+  );
 
-    // ── 2. Specialty Match (base 20 pts) — MESSAGE-FIRST ──────────
-    // If the message describes specific concerns, those take precedence over
-    // what was clicked. Checkboxes supplement but don't override.
+  const scored = pool.map(t => {
+    // ── 1. Message Analysis (55 pts) — Phase 1 priority #1 ─────────
+    let msgScore;
+    if (phase1MessageFirst && !messageHasSignal) {
+      // Empty / no signal → neutral; ranking continues to goals/checkboxes
+      msgScore = 35;
+    } else if (phase1MessageFirst) {
+      // Score free-text only against specialize / comfortable / niches in the message
+      msgScore = analyzeMessageScore(notes, t, implicitSpecs, messageNichesForScore);
+    } else {
+      msgScore = analyzeMessageScore(notes, t, implicitSpecs, detectedNiches);
+    }
+
+    // ── 2. Specialty Match (base 20 pts) ───────────────────────────
+    // Message-first: when free-text has signal, message concerns lead; goals/checkboxes
+    // supplement. When message skipped, Your Goals / checkboxes drive this bucket.
     let specScore = 0;
     const matchedSpecs = ranked.filter(r => t.specialties.includes(r.id));
 
-    if (implicitSpecs.size > 0) {
+    if (phase1MessageFirst && messageHasSignal) {
       // MESSAGE-DRIVEN PATH
-      // Implicit detections (from client's own words) → full weight, 12 pts each
       let implicitPts = 0, implicitMax = 0;
       implicitSpecs.forEach((confidence, specId) => {
         const pts = Math.round(12 * confidence);
         implicitMax += pts;
-        implicitPts += Math.round(pts * specCredit(t, specId)); // comfortable = half credit
+        implicitPts += Math.round(pts * specCredit(t, specId));
       });
-      // Checkbox selections supplement at reduced weight (5 pts) only if not already detected
+      // Goals / checkboxes supplement lightly (do not override message)
       let checkboxPts = 0, checkboxMax = 0;
       ranked.forEach(r => {
         if (!implicitSpecs.has(r.id)) {
           checkboxMax += 5;
-          checkboxPts += 5 * specCredit(t, r.id); // comfortable = half credit
+          checkboxPts += 5 * specCredit(t, r.id);
+        }
+      });
+      const totalPts = implicitPts + checkboxPts;
+      const totalMax = implicitMax + checkboxMax;
+      specScore = totalMax > 0 ? Math.round((totalPts / totalMax) * 20) : 10;
+
+    } else if (implicitSpecs.size > 0 && !phase1MessageFirst) {
+      // Legacy non-Phase-1 path
+      let implicitPts = 0, implicitMax = 0;
+      implicitSpecs.forEach((confidence, specId) => {
+        const pts = Math.round(12 * confidence);
+        implicitMax += pts;
+        implicitPts += Math.round(pts * specCredit(t, specId));
+      });
+      let checkboxPts = 0, checkboxMax = 0;
+      ranked.forEach(r => {
+        if (!implicitSpecs.has(r.id)) {
+          checkboxMax += 5;
+          checkboxPts += 5 * specCredit(t, r.id);
         }
       });
       const totalPts = implicitPts + checkboxPts;
@@ -3064,8 +3110,7 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
       specScore = totalMax > 0 ? Math.round((totalPts / totalMax) * 20) : 10;
 
     } else {
-      // CHECKBOX FALLBACK PATH — no message signals, use checkboxes as before
-      // (comfortable areas count at half credit)
+      // GOALS / CHECKBOX PATH — message empty or no usable signal (Phase 1 next criteria)
       const matchedCredit = ranked.reduce((s, r) => s + specCredit(t, r.id), 0);
       specScore = ranked.length > 0
         ? Math.round((matchedCredit / ranked.length) * 20)

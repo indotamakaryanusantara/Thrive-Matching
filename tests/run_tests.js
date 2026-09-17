@@ -129,7 +129,10 @@ console.log('\n— Phase 1: caseload Building > Open > Refill —');
 check('specialize credit > comfortable credit',
   (() => {
     const t = { specialties: ['anxiety'], comfortable: ['depression'], avoid: [] };
-    return specCredit(t, 'anxiety') > specCredit(t, 'depression') && specCredit(t, 'ocd') === 0;
+    return specCredit(t, 'anxiety') === 1
+      && specCredit(t, 'depression') === 0.5
+      && specCredit(t, 'ocd') === 0
+      && specCredit(t, 'anxiety') > specCredit(t, 'depression');
   })());
 { const a = THERAPISTS.find(t => t.specialties.includes('anxiety') && (t.insurance || []).includes('aetna'));
   if (a) {
@@ -169,6 +172,27 @@ check('no Intensive goal map in Couples Phase 1 deploy',
   });
   check('Couples Affair niches → only infidelity specialists',
     res.length > 0 && res.every(r => r.therapist.niche.some(n => INFID.includes(n)))); }
+
+console.log('\n— Phase 1 message-first (Individual + Couples) —');
+{ // Empty message → neutral msgScore; goals/checkboxes decide
+  const { res } = match('', { ranked: [{ id: 'anxiety', label: 'Anxiety' }], svc: 'individual' });
+  check('empty message → all msgScore neutral (35)',
+    res.length > 0 && res.every(r => r.breakdown.msgScore === 35));
+  check('empty message → still returns matches from goals',
+    res.length > 0); }
+{ // Message with clinical signal → msgScore varies / can exceed neutral
+  const { res } = match('I have OCD and intrusive thoughts every day', {
+    ranked: [{ id: 'anxiety', label: 'Anxiety' }],
+    svc: 'individual',
+  });
+  check('message with OCD signal → top msgScore > 35',
+    res.length > 0 && res[0].breakdown.msgScore > 35);
+  check('message with OCD → no OCD-avoider in results',
+    res.every(r => !(r.therapist.avoid || []).includes('ocd'))); }
+{ // Prefer-not from message concern still hard-excludes
+  const { res } = match('i have been cutting myself', { svc: 'individual' });
+  check('message self-harm → prefer-not avoiders excluded',
+    res.every(r => !(r.therapist.avoid || []).includes('self harm'))); }
 
 console.log('\n— Insurance hard filter —');
 { const { res } = match('i feel anxious most days', { ins: 'bcbs' });
