@@ -385,8 +385,8 @@
     </div>
     <div id="intensiveError" class="field-error" style="margin-top:8px;">Please select a program.</div>
     <div class="nav-row">
-      <button class="btn-back" onclick="goToStep(1)">← Back</button>
-      <button class="btn-next" onclick="nextFromStep1b()">Continue →</button>
+      <button class="btn-back" onclick="goBackFromIntensiveGoals()">← Back</button>
+      <button class="btn-next" onclick="nextFromStep1b()">Find My Therapist →</button>
     </div>
   </div>
 
@@ -1412,8 +1412,8 @@ const INTENSIVE_GOAL_TO_MATCH = {
 };
 
 const DEFAULT_PROGRESS_LABELS = ['Service Type', 'About You', 'Your Goals', 'Preferences', 'Match'];
-// Other Intensive skips Preferences — 4 steps (5th label hidden)
-const INTENSIVE_PROGRESS_LABELS = ['Service Type', 'Your Goals', 'About You', 'Match', ''];
+// Other Intensive skips Preferences — Couples-like order: About You then Your Goals
+const INTENSIVE_PROGRESS_LABELS = ['Service Type', 'About You', 'Your Goals', 'Match', ''];
 
 function setProgressLabels(labels) {
   for (let i = 0; i < 5; i++) {
@@ -1928,10 +1928,15 @@ function nextFromStep1() {
   if (!serviceType) { document.getElementById('serviceError').style.display = 'block'; return; }
   document.getElementById('serviceError').style.display = 'none';
   if (serviceType === 'iop') { showStepIOP(); return; }
-  if (serviceType === 'other_intensive') { showStep1b(); return; }
+  // Other Intensive: About You (contact) first, then Your Goals (program)
+  if (serviceType === 'other_intensive') { showIntensiveAboutYou(); return; }
   if (serviceType === 'groups') { showStepGroupsContact(); return; }
   if (serviceType === 'couples') { showStepCouples2(); return; }
   goToStep(2); // individual → full matching flow
+}
+
+function showIntensiveAboutYou() {
+  showProgramContact('other_intensive');
 }
 
 function showStep1b() {
@@ -1939,14 +1944,20 @@ function showStep1b() {
   document.getElementById('step1b').classList.add('active');
   document.getElementById('progressWrap').style.display = '';
   setProgressLabels(INTENSIVE_PROGRESS_LABELS);
-  updateProgress(2); // Your Goals (program pick)
+  updateProgress(3); // Your Goals (program pick)
   window.scrollTo(0, 0);
+}
+
+function goBackFromIntensiveGoals() {
+  showIntensiveAboutYou();
 }
 
 function nextFromStep1b() {
   if (!intensiveType) { document.getElementById('intensiveError').style.display = 'block'; return; }
   document.getElementById('intensiveError').style.display = 'none';
-  showProgramContact(intensiveType);
+  document.getElementById('stepProgramContact').dataset.programType = intensiveType;
+  applyIntensiveContactPrefs();
+  runMatch();
 }
 
 // ─── Couples flow ────────────────────────────────────────────────────────────
@@ -2416,6 +2427,7 @@ function submitIOP() {
 function showProgramContact(type) {
   const titles = {
     iop:              'Tell us about yourself',
+    other_intensive:  'Tell us about yourself',
     ocd_intensive:    'Tell us about yourself',
     ketamine:         'Tell us about yourself',
     couples_intensive:'Tell us about yourself',
@@ -2423,6 +2435,7 @@ function showProgramContact(type) {
   };
   const subtitles = {
     iop:              'Our IOP team will reach out within 1 business day to walk you through the program and answer any questions.',
+    other_intensive:  'We\'ll use this to match you with a therapist. Next you\'ll choose which intensive program fits best.',
     ocd_intensive:    'Next we\'ll gather a few details, then match you with a therapist for our OCD Intensive program.',
     ketamine:         'Next we\'ll gather a few details, then match you with a therapist for Ketamine-Assisted Therapy.',
     couples_intensive:'Next we\'ll gather a few details, then match you with a therapist for our Couples Intensive program.',
@@ -2435,15 +2448,15 @@ function showProgramContact(type) {
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
   document.getElementById('stepProgramContact').classList.add('active');
   const insField = document.getElementById('pcInsuranceField');
-  // Other Intensive: keep progress visible; show insurance; then match (no Preferences step)
-  // IOP / legacy program handoff: hide progress + insurance (unchanged)
+  // Other Intensive: About You first (contact + insurance), then Your Goals → match
+  // IOP / legacy: hide progress + insurance (unchanged)
   if (serviceType === 'other_intensive') {
     document.getElementById('progressWrap').style.display = '';
     setProgressLabels(INTENSIVE_PROGRESS_LABELS);
-    updateProgress(3); // About You
+    updateProgress(2); // About You
     if (insField) insField.style.display = '';
     const nextBtn = document.querySelector('#stepProgramContact .btn-next');
-    if (nextBtn) nextBtn.textContent = 'Find My Therapist →';
+    if (nextBtn) nextBtn.textContent = 'Continue →';
   } else {
     document.getElementById('progressWrap').style.display = 'none';
     if (insField) insField.style.display = 'none';
@@ -2458,6 +2471,9 @@ function goBackFromProgramContact() {
   const type = document.getElementById('stepProgramContact').dataset.programType;
   if (type === 'iop') {
     setProgressLabels(DEFAULT_PROGRESS_LABELS);
+    goToStep(1);
+  } else if (serviceType === 'other_intensive') {
+    setProgressLabels(INTENSIVE_PROGRESS_LABELS);
     goToStep(1);
   } else {
     showStep1b();
@@ -2491,8 +2507,7 @@ function submitProgramContact() {
   const email = document.getElementById('pcEmail').value.trim();
   const age   = document.getElementById('pcAge').value;
   const loc   = document.querySelector('#pcLocationCards .opt-card.selected');
-  const isIntensiveMatch = serviceType === 'other_intensive'
-    && INTENSIVE_GOAL_TO_MATCH[document.getElementById('stepProgramContact').dataset.programType];
+  const isIntensiveMatch = serviceType === 'other_intensive';
   const ins = isIntensiveMatch
     ? document.querySelector('#pcInsuranceCards .opt-card.selected')
     : true;
@@ -2509,10 +2524,10 @@ function submitProgramContact() {
   if (isIntensiveMatch && !ins) return;
 
   const type = document.getElementById('stepProgramContact').dataset.programType;
-  // Other Intensive: contact (+ insurance) → findMatch directly (no Preferences step)
+  // Other Intensive: About You → Your Goals (program) → match
   if (isIntensiveMatch) {
     applyIntensiveContactPrefs();
-    runMatch();
+    showStep1b();
     return;
   }
   // Legacy / IOP: hard-route known intensives or program result screen
