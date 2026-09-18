@@ -625,6 +625,17 @@
       </div>
       <div class="field-error" id="errPcLocation">Please select a location.</div>
     </div>
+    <div class="field" id="pcInsuranceField" style="display:none;">
+      <label>Insurance</label>
+      <div class="option-cards" id="pcInsuranceCards">
+        <div class="opt-card" data-val="Aetna" onclick="selectOpt('pcInsuranceCards',this)">Aetna</div>
+        <div class="opt-card" data-val="BCBS" onclick="selectOpt('pcInsuranceCards',this)">Blue Cross Blue Shield</div>
+        <div class="opt-card" data-val="Cigna" onclick="selectOpt('pcInsuranceCards',this)">Cigna</div>
+        <div class="opt-card" data-val="United" onclick="selectOpt('pcInsuranceCards',this)">United</div>
+        <div class="opt-card" data-val="Other" onclick="selectOpt('pcInsuranceCards',this)">Other</div>
+      </div>
+      <div class="field-error" id="errPcInsurance">Please select a payment option.</div>
+    </div>
     <div class="field">
       <label>Anything you'd like us to know?</label>
       <textarea id="pcMessage" placeholder="Tell us a bit about what you're hoping to work on or any questions you have…"></textarea>
@@ -1401,12 +1412,16 @@ const INTENSIVE_GOAL_TO_MATCH = {
 };
 
 const DEFAULT_PROGRESS_LABELS = ['Service Type', 'About You', 'Your Goals', 'Preferences', 'Match'];
-const INTENSIVE_PROGRESS_LABELS = ['Service Type', 'Your Goals', 'About You', 'Preferences', 'Match'];
+// Other Intensive skips Preferences — 4 steps (5th label hidden)
+const INTENSIVE_PROGRESS_LABELS = ['Service Type', 'Your Goals', 'About You', 'Match', ''];
 
 function setProgressLabels(labels) {
   for (let i = 0; i < 5; i++) {
     const el = document.getElementById('lbl' + (i + 1));
-    if (el) el.textContent = labels[i] || DEFAULT_PROGRESS_LABELS[i];
+    if (!el) continue;
+    const text = labels[i] || '';
+    el.textContent = text || DEFAULT_PROGRESS_LABELS[i];
+    el.style.display = text ? '' : 'none';
   }
 }
 
@@ -1992,8 +2007,6 @@ function backFromStep4() {
     document.getElementById('stepCouplesSpecialty').classList.add('active');
     updateProgress(3);
     window.scrollTo(0, 0);
-  } else if (serviceType === 'other_intensive') {
-    showProgramContact(intensiveType);
   } else {
     goToStep(3);
   }
@@ -2421,16 +2434,19 @@ function showProgramContact(type) {
   document.getElementById('stepProgramContact').dataset.programType = type;
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
   document.getElementById('stepProgramContact').classList.add('active');
-  // Other Intensive: keep progress visible (Service → Your Goals → About You → …)
-  // IOP / legacy program handoff: hide progress (unchanged)
+  const insField = document.getElementById('pcInsuranceField');
+  // Other Intensive: keep progress visible; show insurance; then match (no Preferences step)
+  // IOP / legacy program handoff: hide progress + insurance (unchanged)
   if (serviceType === 'other_intensive') {
     document.getElementById('progressWrap').style.display = '';
     setProgressLabels(INTENSIVE_PROGRESS_LABELS);
     updateProgress(3); // About You
+    if (insField) insField.style.display = '';
     const nextBtn = document.querySelector('#stepProgramContact .btn-next');
-    if (nextBtn) nextBtn.textContent = 'Continue →';
+    if (nextBtn) nextBtn.textContent = 'Find My Therapist →';
   } else {
     document.getElementById('progressWrap').style.display = 'none';
+    if (insField) insField.style.display = 'none';
     const nextBtn = document.querySelector('#stepProgramContact .btn-next');
     if (nextBtn) nextBtn.textContent = 'Submit →';
   }
@@ -2448,30 +2464,55 @@ function goBackFromProgramContact() {
   }
 }
 
+/** Map Other Intensive contact location → matcher prefs; gender soft default. */
+function applyIntensiveContactPrefs() {
+  genderPref = 3; // No preference
+  internPref = 'excluded';
+  const loc = document.querySelector('#pcLocationCards .opt-card.selected');
+  const v = loc ? loc.dataset.val : 'No Preference';
+  if (v === 'Phoenix') {
+    locationPref = 1;
+    virtualPref = 2; // open to either
+  } else if (v === 'Glendale') {
+    locationPref = 5;
+    virtualPref = 2;
+  } else if (v === 'Virtual') {
+    locationPref = 3;
+    virtualPref = 3; // virtual only
+  } else {
+    locationPref = 3;
+    virtualPref = 2;
+  }
+}
+
 function submitProgramContact() {
   const name  = document.getElementById('pcName').value.trim();
   const phone = document.getElementById('pcPhone').value.trim();
   const email = document.getElementById('pcEmail').value.trim();
   const age   = document.getElementById('pcAge').value;
   const loc   = document.querySelector('#pcLocationCards .opt-card.selected');
+  const isIntensiveMatch = serviceType === 'other_intensive'
+    && INTENSIVE_GOAL_TO_MATCH[document.getElementById('stepProgramContact').dataset.programType];
+  const ins = isIntensiveMatch
+    ? document.querySelector('#pcInsuranceCards .opt-card.selected')
+    : true;
 
   document.getElementById('errPcName').style.display     = !name ? 'block' : 'none';
   document.getElementById('errPcPhone').style.display    = !phone ? 'block' : 'none';
   document.getElementById('errPcEmail').style.display    = (!email || !email.includes('@')) ? 'block' : 'none';
   document.getElementById('errPcAge').style.display      = !age ? 'block' : 'none';
   document.getElementById('errPcLocation').style.display = !loc ? 'block' : 'none';
+  const errIns = document.getElementById('errPcInsurance');
+  if (errIns) errIns.style.display = (isIntensiveMatch && !ins) ? 'block' : 'none';
 
   if (!name || !phone || !email || !email.includes('@') || !age || !loc) return;
+  if (isIntensiveMatch && !ins) return;
 
   const type = document.getElementById('stepProgramContact').dataset.programType;
-  // Other Intensive: Your Goals → contact → preferences → therapist match (no hard-route)
-  if (serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[type]) {
-    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-    document.getElementById('step4').classList.add('active');
-    document.getElementById('progressWrap').style.display = '';
-    setProgressLabels(INTENSIVE_PROGRESS_LABELS);
-    updateProgress(4);
-    window.scrollTo(0, 0);
+  // Other Intensive: contact (+ insurance) → findMatch directly (no Preferences step)
+  if (isIntensiveMatch) {
+    applyIntensiveContactPrefs();
+    runMatch();
     return;
   }
   // Legacy / IOP: hard-route known intensives or program result screen
@@ -2518,10 +2559,12 @@ function goToStep(n) {
 
 function updateProgress(n) {
   const pct = { 1:20, 2:40, 3:60, 4:80, 5:100 };
-  document.getElementById('progressFill').style.width = (pct[n] || 20) + '%';
+  // Other Intensive is 4 steps — "Match" is label 4
+  const step = (serviceType === 'other_intensive' && n === 5) ? 4 : n;
+  document.getElementById('progressFill').style.width = (pct[step] || 20) + '%';
   for (let i = 1; i <= 5; i++) {
     const l = document.getElementById('lbl'+i);
-    if (l) l.classList.toggle('active', i === n);
+    if (l) l.classList.toggle('active', i === step);
   }
 }
 
@@ -2613,8 +2656,15 @@ function getSeverityTier(specIds, notes, implicitSpecIds) {
 
 // ─── Matching algorithm ───────────────────────────────────────────────────────
 function runMatch() {
-  const insCard = document.querySelector('#insuranceCards .opt-card.selected');
-  document.getElementById('errInsurance').style.display = !insCard ? 'block' : 'none';
+  const insCard = serviceType === 'other_intensive'
+    ? document.querySelector('#pcInsuranceCards .opt-card.selected')
+    : document.querySelector('#insuranceCards .opt-card.selected');
+  if (serviceType === 'other_intensive') {
+    const errIns = document.getElementById('errPcInsurance');
+    if (errIns) errIns.style.display = !insCard ? 'block' : 'none';
+  } else {
+    document.getElementById('errInsurance').style.display = !insCard ? 'block' : 'none';
+  }
   if (!insCard) return;
 
   const insurance = insCard.dataset.val.toLowerCase().replace('-','');
@@ -4124,7 +4174,9 @@ function submitGroupsInquiry(group) {
 
 function collectInquiryPayload(extra) {
   extra = extra || {};
-  const insCard = document.querySelector('#insuranceCards .opt-card.selected');
+  const insCard = serviceType === 'other_intensive'
+    ? document.querySelector('#pcInsuranceCards .opt-card.selected')
+    : document.querySelector('#insuranceCards .opt-card.selected');
   const locLabels = { 1: 'Phoenix', 2: 'Prefer Phoenix', 3: 'No preference', 4: 'Prefer Glendale', 5: 'Glendale' };
   const virtLabels = { 1: 'In-person only', 2: 'Open to virtual', 3: 'Virtual only' };
   const preferredLocation = [locLabels[locationPref], virtLabels[virtualPref]].filter(Boolean).join(' · ');
