@@ -33,7 +33,8 @@ eval([
   grab('analyzeMessageScore', 'fn'), grab('findMatch', 'fn'),
   grab('analyzeMatch', 'fn'), grab('buildConversationalBlurb', 'fn'),
   src.match(/const COUPLES_GOAL_TO_MATCH = \{[\s\S]*?\n\};/)[0],
-  'Object.assign(globalThis, {THERAPISTS, GROUPS, GROUP_KEYWORDS, NICHE_KEYWORDS, nicheKwHits, detectImplicitSpecialties, getSeverityTier, specCredit, analyzeMessageScore, findMatch, analyzeMatch, buildConversationalBlurb, COUPLES_GOAL_TO_MATCH});'
+  src.match(/const INTENSIVE_GOAL_TO_MATCH = \{[\s\S]*?\n\};/)[0],
+  'Object.assign(globalThis, {THERAPISTS, GROUPS, GROUP_KEYWORDS, NICHE_KEYWORDS, nicheKwHits, detectImplicitSpecialties, getSeverityTier, specCredit, analyzeMessageScore, findMatch, analyzeMatch, buildConversationalBlurb, COUPLES_GOAL_TO_MATCH, INTENSIVE_GOAL_TO_MATCH});'
 ].join('\n'));
 
 let passed = 0, failed = 0;
@@ -162,8 +163,16 @@ check('Affair goal maps to infidelity niches',
   (COUPLES_GOAL_TO_MATCH['Affair / Betrayal Recovery'].niches || []).includes('infidelity'));
 check('Premarital goal maps to premarital niche',
   (COUPLES_GOAL_TO_MATCH['Premarital'].niches || []).includes('premarital'));
-check('no Intensive goal map in Couples Phase 1 deploy',
-  typeof globalThis.INTENSIVE_GOAL_TO_MATCH === 'undefined');
+check('Intensive OCD maps to ocd specialty',
+  INTENSIVE_GOAL_TO_MATCH.ocd_intensive.specialty === 'ocd');
+check('Intensive Trauma maps to trauma specialty',
+  INTENSIVE_GOAL_TO_MATCH.trauma_intensive.specialty === 'trauma');
+check('Intensive Couples maps to couples + couples intensives niche',
+  INTENSIVE_GOAL_TO_MATCH.couples_intensive.specialty === 'couples'
+  && (INTENSIVE_GOAL_TO_MATCH.couples_intensive.niches || []).includes('couples intensives'));
+check('Intensive Ketamine maps to depression + ketamine niche',
+  INTENSIVE_GOAL_TO_MATCH.ketamine.specialty === 'depression'
+  && (INTENSIVE_GOAL_TO_MATCH.ketamine.niches || []).includes('ketamine'));
 { const INFID = ['infidelity', 'betrayal trauma'];
   const { res } = match('we need help', {
     svc: 'couples',
@@ -172,6 +181,20 @@ check('no Intensive goal map in Couples Phase 1 deploy',
   });
   check('Couples Affair niches → only infidelity specialists',
     res.length > 0 && res.every(r => r.therapist.niche.some(n => INFID.includes(n)))); }
+{ const { res } = match('', {
+    svc: 'other_intensive',
+    ranked: [{ id: 'ocd', label: 'OCD Intensive' }],
+  });
+  check('Other Intensive OCD empty message → matches with OCD specialty/comfortable',
+    res.length > 0 && res.every(r => (r.therapist.specialties || []).includes('ocd')
+      || (r.therapist.comfortable || []).includes('ocd'))); }
+{ const { res } = match('', {
+    svc: 'other_intensive',
+    ranked: [{ id: 'trauma', label: 'Trauma Intensive' }],
+  });
+  check('Other Intensive Trauma empty message → matches with trauma specialty/comfortable',
+    res.length > 0 && res.every(r => (r.therapist.specialties || []).includes('trauma')
+      || (r.therapist.comfortable || []).includes('trauma'))); }
 
 console.log('\n— Phase 1 message-first (Individual + Couples) —');
 { // Empty message → neutral msgScore; goals/checkboxes decide

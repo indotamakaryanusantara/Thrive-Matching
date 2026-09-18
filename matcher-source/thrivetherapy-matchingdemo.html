@@ -357,10 +357,10 @@
     </div>
   </div>
 
-  <!-- STEP 1b: Intensive Sub-Menu -->
+  <!-- STEP 1b: Other Intensive — Your Goals (secondary service) -->
   <div class="step" id="step1b">
-    <div class="step-title">Which program are you interested in?</div>
-    <div class="step-subtitle">Each of these programs has a dedicated team — we'll get you connected to the right one.</div>
+    <div class="step-title">Your Goals</div>
+    <div class="step-subtitle">Select the intensive program that fits what you're looking for — we'll use this to match you with a therapist.</div>
     <div class="service-grid" style="grid-template-columns: 1fr 1fr;">
       <div class="service-card" data-value="ketamine" onclick="selectIntensive(this)">
         <div class="sc-icon">🌿</div>
@@ -1381,7 +1381,6 @@ const THERAPISTS = [
 const HARD_FILTER_SPECIALTIES = ["ocd","trauma","couples","eating disorders"];
 
 // Couples Your Goals → specialty / niche signals for Phase 1 matching
-// (IOP / Intensive / Groups intentionally NOT mapped here — HOLD)
 const COUPLES_GOAL_TO_MATCH = {
   'Affair / Betrayal Recovery': { specialty: 'couples', niches: ['infidelity', 'betrayal trauma'] },
   'Communication & Conflict':   { specialty: 'couples', niches: ['communication'] },
@@ -1391,6 +1390,31 @@ const COUPLES_GOAL_TO_MATCH = {
   'Premarital':                 { specialty: 'couples', niches: ['premarital'] },
   'Other':                      { specialty: 'couples', niches: [] },
 };
+
+// Other Intensive Your Goals → specialty / niche for Phase 1 therapist match
+// (no hard-route, no specialist soft boost — program pick is the clinical signal only)
+const INTENSIVE_GOAL_TO_MATCH = {
+  ketamine:          { specialty: 'depression', niches: ['ketamine'], label: 'Ketamine-Assisted Therapy' },
+  ocd_intensive:     { specialty: 'ocd', niches: [], label: 'OCD Intensive' },
+  couples_intensive: { specialty: 'couples', niches: ['couples intensives'], label: 'Couples Intensive' },
+  trauma_intensive:  { specialty: 'trauma', niches: [], label: 'Trauma Intensive' },
+};
+
+const DEFAULT_PROGRESS_LABELS = ['Service Type', 'About You', 'Your Goals', 'Preferences', 'Match'];
+const INTENSIVE_PROGRESS_LABELS = ['Service Type', 'Your Goals', 'About You', 'Preferences', 'Match'];
+
+function setProgressLabels(labels) {
+  for (let i = 0; i < 5; i++) {
+    const el = document.getElementById('lbl' + (i + 1));
+    if (el) el.textContent = labels[i] || DEFAULT_PROGRESS_LABELS[i];
+  }
+}
+
+function clientContactName() {
+  if (serviceType === 'couples') return (document.getElementById('couplesName')?.value || '').trim();
+  if (serviceType === 'other_intensive') return (document.getElementById('pcName')?.value || '').trim();
+  return (document.getElementById('fname')?.value || '').trim();
+}
 
 // Niche keyword map — words found in client notes → boost therapists with matching niche tags
 // Word-START boundary matching for niche keywords (same approach as specialties):
@@ -1898,7 +1922,9 @@ function nextFromStep1() {
 function showStep1b() {
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
   document.getElementById('step1b').classList.add('active');
-  document.getElementById('progressFill').style.width = '20%';
+  document.getElementById('progressWrap').style.display = '';
+  setProgressLabels(INTENSIVE_PROGRESS_LABELS);
+  updateProgress(2); // Your Goals (program pick)
   window.scrollTo(0, 0);
 }
 
@@ -1915,6 +1941,7 @@ function showStepCouples2() {
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
   document.getElementById('stepCouples2').classList.add('active');
   document.getElementById('progressWrap').style.display = '';
+  setProgressLabels(DEFAULT_PROGRESS_LABELS);
   updateProgress(2);
   window.scrollTo(0, 0);
 }
@@ -1965,6 +1992,8 @@ function backFromStep4() {
     document.getElementById('stepCouplesSpecialty').classList.add('active');
     updateProgress(3);
     window.scrollTo(0, 0);
+  } else if (serviceType === 'other_intensive') {
+    showProgramContact(intensiveType);
   } else {
     goToStep(3);
   }
@@ -2381,10 +2410,10 @@ function showProgramContact(type) {
   };
   const subtitles = {
     iop:              'Our IOP team will reach out within 1 business day to walk you through the program and answer any questions.',
-    ocd_intensive:    'Our OCD Intensive team will be in touch within 1 business day to explain the program and discuss next steps.',
-    ketamine:         'Our KAP team will reach out within 1 business day to answer your questions and help determine if ketamine-assisted therapy is a good fit.',
-    couples_intensive:'Our Couples Intensive team will be in touch within 1 business day to walk you through the format and schedule.',
-    trauma_intensive: 'Our Trauma Intensive team will reach out within 1 business day to discuss the program and what to expect.',
+    ocd_intensive:    'Next we\'ll gather a few details, then match you with a therapist for our OCD Intensive program.',
+    ketamine:         'Next we\'ll gather a few details, then match you with a therapist for Ketamine-Assisted Therapy.',
+    couples_intensive:'Next we\'ll gather a few details, then match you with a therapist for our Couples Intensive program.',
+    trauma_intensive: 'Next we\'ll gather a few details, then match you with a therapist for our Trauma Intensive program.',
   };
   document.getElementById('pcTitle').textContent = titles[type] || 'Tell us about yourself';
   document.getElementById('pcSubtitle').textContent = subtitles[type] || 'Our team will be in touch shortly.';
@@ -2392,15 +2421,31 @@ function showProgramContact(type) {
   document.getElementById('stepProgramContact').dataset.programType = type;
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
   document.getElementById('stepProgramContact').classList.add('active');
-  document.getElementById('progressWrap').style.display = 'none';
+  // Other Intensive: keep progress visible (Service → Your Goals → About You → …)
+  // IOP / legacy program handoff: hide progress (unchanged)
+  if (serviceType === 'other_intensive') {
+    document.getElementById('progressWrap').style.display = '';
+    setProgressLabels(INTENSIVE_PROGRESS_LABELS);
+    updateProgress(3); // About You
+    const nextBtn = document.querySelector('#stepProgramContact .btn-next');
+    if (nextBtn) nextBtn.textContent = 'Continue →';
+  } else {
+    document.getElementById('progressWrap').style.display = 'none';
+    const nextBtn = document.querySelector('#stepProgramContact .btn-next');
+    if (nextBtn) nextBtn.textContent = 'Submit →';
+  }
   window.scrollTo(0, 0);
 }
 
 function goBackFromProgramContact() {
   document.getElementById('progressWrap').style.display = '';
   const type = document.getElementById('stepProgramContact').dataset.programType;
-  if (type === 'iop') { goToStep(1); }
-  else { showStep1b(); }
+  if (type === 'iop') {
+    setProgressLabels(DEFAULT_PROGRESS_LABELS);
+    goToStep(1);
+  } else {
+    showStep1b();
+  }
 }
 
 function submitProgramContact() {
@@ -2419,7 +2464,17 @@ function submitProgramContact() {
   if (!name || !phone || !email || !email.includes('@') || !age || !loc) return;
 
   const type = document.getElementById('stepProgramContact').dataset.programType;
-  // Directly routed intensives — show specific therapist profile
+  // Other Intensive: Your Goals → contact → preferences → therapist match (no hard-route)
+  if (serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[type]) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step4').classList.add('active');
+    document.getElementById('progressWrap').style.display = '';
+    setProgressLabels(INTENSIVE_PROGRESS_LABELS);
+    updateProgress(4);
+    window.scrollTo(0, 0);
+    return;
+  }
+  // Legacy / IOP: hard-route known intensives or program result screen
   if (INTENSIVE_ROUTING[type]) {
     showIntensiveTherapistResult(type, name);
   } else {
@@ -2452,6 +2507,9 @@ function goToStep(n) {
   document.getElementById('resultScreen').classList.remove('active');
   document.getElementById('programResult').classList.remove('active');
   document.getElementById('progressWrap').style.display = '';
+  if (n === 1 || serviceType === 'individual' || serviceType === 'couples') {
+    setProgressLabels(DEFAULT_PROGRESS_LABELS);
+  }
   document.getElementById('step' + n).classList.add('active');
   updateProgress(n);
   if (n === 3) { rankedSelections = []; updateSpecialtyUI(); }
@@ -2580,6 +2638,12 @@ function runMatch() {
     if (ranked.length === 0) ranked = [{ id: 'couples', label: 'Couples Therapy' }];
     // Phase 1 message-first: only free-text is "Tell us a bit more" — not goal labels
     notes = (document.getElementById('couplesMessage').value || '').toLowerCase();
+  } else if (serviceType === 'other_intensive') {
+    clientAge = parseInt(document.getElementById('pcAge').value) || 30;
+    const goal = INTENSIVE_GOAL_TO_MATCH[intensiveType] || { specialty: 'anxiety', niches: [], label: intensiveType || 'Other Intensive' };
+    ranked = [{ id: goal.specialty, label: goal.label }];
+    // Phase 1 message-first: optional pcMessage only — program label is via ranked/niches
+    notes = (document.getElementById('pcMessage').value || '').toLowerCase();
   } else {
     clientAge = parseInt(document.getElementById('fage').value) || 25;
     ranked    = rankedSelections;
@@ -2658,7 +2722,7 @@ function runMatch() {
   Object.entries(NICHE_KEYWORDS).forEach(([kw, tags]) => {
     if (nicheKwHits(notes, kw)) tags.forEach(t => messageNiches.add(t));
   });
-  // Combined niches: message + Couples Your Goals (goals are next criteria, not message)
+  // Combined niches: message + Couples / Intensive Your Goals (goals are next criteria, not message)
   const detectedNiches = new Set(messageNiches);
   if (serviceType === 'couples') {
     Array.from(document.querySelectorAll('#couplesFocusCards .opt-card.selected'))
@@ -2667,6 +2731,8 @@ function runMatch() {
         const map = COUPLES_GOAL_TO_MATCH[goal];
         if (map) map.niches.forEach(n => detectedNiches.add(n));
       });
+  } else if (serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[intensiveType]) {
+    (INTENSIVE_GOAL_TO_MATCH[intensiveType].niches || []).forEach(n => detectedNiches.add(n));
   }
 
   // ── Explicit niche/language request → HARD requirement ──────────────────────
@@ -2720,11 +2786,11 @@ function runMatch() {
     showMatchResult(null); return;
   }
 
-  // ── Phase 1 result routing (Individual + Couples only) ─────────────────────
+  // ── Phase 1 result routing (Individual + Couples + Other Intensive) ────────
   // Yoshi 2026-09-03: prefer one best match; if not a clear winner, show multiple
   // ranked best → next. Skip niche/clinical conflict screens for Phase 1 go-live.
-  // IOP / Intensive / Groups do not use this path.
-  if (serviceType === 'individual' || serviceType === 'couples') {
+  // IOP / Groups do not use this path.
+  if (serviceType === 'individual' || serviceType === 'couples' || serviceType === 'other_intensive') {
     const CLEAR_WINNER_MARGIN = 6;
     const margin = topMatches.length > 1
       ? topMatches[0].score - topMatches[1].score
@@ -2951,9 +3017,9 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
     if (filtered.length > 0) pool = filtered;
   }
 
-  // Gender "ONLY" — Phase 1 (Individual/Couples): soft only so adequate options remain
+  // Gender "ONLY" — Phase 1 (Individual/Couples/Other Intensive): soft only so adequate options remain
   // when preferred gender is unavailable (Yoshi 2026-09-03). UI left as-is.
-  const phase1SoftGender = serviceType === 'individual' || serviceType === 'couples';
+  const phase1SoftGender = serviceType === 'individual' || serviceType === 'couples' || serviceType === 'other_intensive';
   if (!phase1SoftGender) {
     if (genderPref === 1) {
       const p = pool.filter(t => t.gender === 'male');
@@ -3032,10 +3098,10 @@ function findMatch(ranked, locationPref, insurance, genderPref, virtualPref, ins
 
   // (implicitSpecs already detected at top of findMatch)
 
-  // Phase 1 message-first (Individual + Couples): free-text is priority #1 vs
+  // Phase 1 message-first (Individual + Couples + Other Intensive): free-text is priority #1 vs
   // Specialize / Comfortable / Prefer-not. Empty or no usable signal → skip to
   // Your Goals / checkboxes (next criteria). Yoshi 2026-08-28 / client 2026-09-03.
-  const phase1MessageFirst = serviceType === 'individual' || serviceType === 'couples';
+  const phase1MessageFirst = serviceType === 'individual' || serviceType === 'couples' || serviceType === 'other_intensive';
   const messageNichesForScore = new Set();
   if (phase1MessageFirst) {
     Object.entries(NICHE_KEYWORDS).forEach(([kw, tags]) => {
@@ -3458,9 +3524,7 @@ function showRequestedClosedResult(closedTherapist, backupResult) {
   updateProgress(5);
   document.getElementById('resultScreen').classList.add('active');
 
-  const nameField = serviceType === 'couples'
-    ? document.getElementById('couplesName').value.trim()
-    : document.getElementById('fname').value.trim();
+  const nameField = clientContactName();
   const firstName = nameField.split(' ')[0] || 'there';
   const therapistFirst = closedTherapist.name.split(' ')[0];
 
@@ -3524,9 +3588,7 @@ function showMatchResult(result) {
   updateProgress(5);
   document.getElementById('resultScreen').classList.add('active');
 
-  const nameField = serviceType === 'couples'
-    ? document.getElementById('couplesName').value.trim()
-    : document.getElementById('fname').value.trim();
+  const nameField = clientContactName();
   const firstName = nameField.split(' ')[0];
   document.getElementById('resultTitle').textContent = result
     ? `We've got a great match for you, ${firstName}!`
@@ -3607,8 +3669,13 @@ function showMatchResult(result) {
 
   submitInquiryOnce(collectInquiryPayload({
     selectedTherapist: result.therapist.name,
-    formPath: 'match_result',
-    matchScoresJson: JSON.stringify({ pct: result.pct, score: result.score }),
+    formPath: serviceType === 'other_intensive' && intensiveType
+      ? ('intensive_' + intensiveType + '_match')
+      : 'match_result',
+    matchScoresJson: JSON.stringify({ pct: result.pct, score: result.score, intensiveType: intensiveType || null }),
+    notes: serviceType === 'other_intensive' && INTENSIVE_GOAL_TO_MATCH[intensiveType]
+      ? INTENSIVE_GOAL_TO_MATCH[intensiveType].label
+      : '',
   }));
   window.scrollTo(0, 0);
 }
@@ -4081,8 +4148,8 @@ function collectInquiryPayload(extra) {
     matchedTherapistEmail: '',
     selectedGroups: '',
     matchScoresJson: '',
-    formPath: '',
-    notes: '',
+    formPath: serviceType === 'other_intensive' && intensiveType ? ('intensive_' + intensiveType + '_match') : '',
+    notes: serviceType === 'other_intensive' && intensiveType ? (INTENSIVE_GOAL_TO_MATCH[intensiveType]?.label || intensiveType) : '',
   }, extra);
 
   if (!payload.matchedTherapistEmail && payload.selectedTherapist) {
